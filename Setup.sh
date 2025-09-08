@@ -98,7 +98,7 @@ function app_update_init() {
   #   bottom - 图形化系统监控
   #   fastfetch - 系统信息工具
   sudo apt -y install sudo
-  sudo apt -y install curl wget zsh git vim unzip bc rsync jq
+  sudo apt -y install curl wget zsh git vim unzip bc rsync jq htop sysstat
 
   if ! type btm >/dev/null 2>&1; then
     # 如果没有安装 bottom
