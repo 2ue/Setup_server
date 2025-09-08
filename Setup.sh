@@ -83,8 +83,8 @@ function app_update_init() {
     *) echo "错误选项：$REPLY" ;;
     esac
   done
-  sudo apt -y update || apt -y update   # 更新软件列表
-  sudo apt -y upgrade || apt -y upgrade # 更新所有软件
+  sudo apt -y update  # 更新软件列表
+  sudo apt -y upgrade  # 更新所有软件
   # 默认安装：
   #   sudo - 系统管理指令
   #   zsh - 命令行界面
@@ -97,7 +97,7 @@ function app_update_init() {
   #   rsync - 文件同步
   #   bottom - 图形化系统监控
   #   fastfetch - 系统信息工具
-  apt -y install sudo
+  sudo apt -y install sudo
   sudo apt -y install curl wget zsh git vim unzip bc rsync jq
 
   if ! type btm >/dev/null 2>&1; then
