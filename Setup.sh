@@ -5,8 +5,8 @@ github_repo="github.com"               # 默认 github 仓库域名
 github_release="github.com" # 默认 github release 域名
 github_raw="raw.githubusercontent.com" # 默认 github raw 域名
 
-script_list=("app_update_init" "swap_set" "vps_reviews" "term_config"  "app_install" "app_remove" "docker_init" "docker_install" "docker_update" "docker_remove" "apt_clean" "sys_reboot")                                                                           # 脚本列表
-script_list_info=("APT 软件更新、默认软件安装" "设置 swap 内存" "服务器测试" "配置终端" "自选软件安装" "自选软件卸载" "安装，更新 Docker" "从 Docker compose 部署 docker 容器" "更新 docker 镜像和容器" "删除 docker 镜像和容器" "清理 APT 空间" "重启系统")                  # 脚本列表说明
+script_list=("app_update_init" "swap_set" "vps_reviews" "term_config"  "app_install" "app_remove" "docker_init" "docker_install" "docker_update" "docker_remove" "change_timezone" "apt_clean" "sys_reboot")                                                                           # 脚本列表
+script_list_info=("APT 软件更新、默认软件安装" "设置 swap 内存" "服务器测试" "配置终端" "自选软件安装" "自选软件卸载" "安装，更新 Docker" "从 Docker compose 部署 docker 容器" "更新 docker 镜像和容器" "删除 docker 镜像和容器" "调整时区" "清理 APT 空间" "重启系统")                  # 脚本列表说明
 docker_list=("code-server" "nginx" "pure-ftpd" "web_object_detection" "zfile" "subconverter" "sub-web" "mdserver-web" "qinglong" "webdav-client" "watchtower" "jsxm")                                                                                 # 可安装容器列表
 docker_list_info=("在线 Web IDE" "Web 服务器" "FTP 服务器" "在线 web 目标识别" "在线云盘" "订阅转换后端" "订阅转换前端" "一款简单Linux面板服务" "定时任务管理面板" "Webdav 客户端，同步映射到宿主文件系统" "自动化更新 Docker 镜像和容器" "Web 在线 xm 音乐播放器") # 可安装容器列表说明
 app_list=("mw" "bt" "1pctl" "kubesphere")                                                                                                                                                                                                             # 自选软件列表
@@ -813,6 +813,37 @@ function docker_remove() {
   else
     echo "Docker 未安装!"
   fi
+}
+
+
+# 调整时区
+function change_timezone() {
+    # 列出所有可用的时区
+    timezones=("Asia/Shanghai" "America/New_York" "Europe/London" "Australia/Sydney")
+
+    # 提示用户选择时区
+    echo -e "请选择要设置的时区（或直接输入时区名称）：\n"
+    select tz in "${timezones[@]}" "输入其他时区"; do
+        case $tz in
+            "输入其他时区")
+                read -rp "请输入时区名称：" NEW_TIMEZONE
+                break
+                ;;
+            *)
+                NEW_TIMEZONE=$tz
+                break
+                ;;
+        esac
+    done
+
+    # 检查timedatectl命令是否存在
+    if command -v timedatectl &> /dev/null; then
+        # 使用timedatectl命令更改时区
+        sudo timedatectl set-timezone "$NEW_TIMEZONE"
+        echo "时区已设置为 $NEW_TIMEZONE"
+    else
+        echo "timedatectl 命令未找到。请确保已安装 systemd。"
+    fi
 }
 
 # 清理 APT 空间
