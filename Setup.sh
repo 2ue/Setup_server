@@ -914,6 +914,7 @@ if [ -f /etc/os-release ]; then
             docker_init &&
             app_install &&
             docker_install &&
+            change_timezone &&
             apt_clean &&
             sys_reboot
             ;;
