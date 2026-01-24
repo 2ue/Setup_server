@@ -68,23 +68,22 @@
 ## 一键脚本
 
 ```sh
-if command -v curl >/dev/null 2>&1; then
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh)"
-elif command -v wget >/dev/null 2>&1; then
-    bash -c "$(wget https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh -O -)"
-else
-    echo "请先安装 curl 或 wget" >&2
-fi
-```
-
-### 国内使用
-
-```sh
-if command -v curl >/dev/null 2>&1; then
-    bash -c "$(curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh)"
-elif command -v wget >/dev/null 2>&1; then
-    bash -c "$(wget https://ghfast.top/https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh -O -)"
-else
-    echo "请先安装 curl 或 wget" >&2
-fi
+(
+  echo -n "是否从国内拉取脚本？[Y/n] "; read r; 
+  if [ "$r" = "n" ] || [ "$r" = "N" ]; then
+    url="https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh"
+  else
+    url="https://ghfast.top/https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh"
+  fi;
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "请先安装 sudo" >&2; exit 1
+  fi;
+  if command -v curl >/dev/null 2>&1; then
+    sudo bash -c "$(curl -fsSL "$url")"
+  elif command -v wget >/dev/null 2>&1; then
+    sudo bash -c "$(wget "$url" -O -)"
+  else
+    echo "请先安装 curl 或 wget" >&2; exit 1
+  fi
+)
 ```
