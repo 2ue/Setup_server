@@ -113,6 +113,7 @@ function app_update_init() {
     FLAGS=(
         "enable_cache_memory = true"
         "network_use_bytes   = true"
+        "process_command     = true"
     )
     
     # ---------- 3. 创建目录并写配置文件 ----------
