@@ -196,8 +196,66 @@ codex2api_env_example_path() {
   printf '%s/%s\n' "$(codex2api_stack_dir)" ".env.example"
 }
 
+codex2api_install_info_path() {
+  printf '%s/%s\n' "$(codex2api_stack_dir)" "INSTALL_INFO.txt"
+}
+
 codex2api_stack_exists() {
   [ -f "$(codex2api_compose_path)" ] && [ -f "$(codex2api_env_path)" ]
+}
+
+compose_service_names() {
+  local compose_path="$1"
+
+  awk '
+    /^services:[[:space:]]*$/ {
+      in_services = 1
+      next
+    }
+    in_services && /^[^[:space:]]/ {
+      exit
+    }
+    in_services && /^[[:space:]]{2}[A-Za-z0-9_.-]+:[[:space:]]*$/ {
+      name = $1
+      sub(/:$/, "", name)
+      print name
+    }
+  ' "$compose_path"
+}
+
+docker_container_name_exists() {
+  local container_name="$1"
+
+  run_privileged docker ps -a --format '{{.Names}}' | grep -Fx -- "$container_name" >/dev/null 2>&1
+}
+
+codex2api_conflicting_container_names() {
+  local compose_path="$1"
+  local project_name="$2"
+  local service_name
+  local candidate
+
+  while IFS= read -r service_name; do
+    [ -n "$service_name" ] || continue
+    for candidate in \
+      "$service_name" \
+      "${project_name}-${service_name}" \
+      "${project_name}-${service_name}-1" \
+      "${project_name}_${service_name}" \
+      "${project_name}_${service_name}_1"
+    do
+      if docker_container_name_exists "$candidate"; then
+        printf '%s\n' "$candidate"
+      fi
+    done
+  done < <(compose_service_names "$compose_path")
+}
+
+dir_has_entries() {
+  local dir_path="$1"
+
+  [ -d "$dir_path" ] || return 1
+  find "$dir_path" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null | grep -q .
 }
 
 docker_service_name_by_selection() {
@@ -389,6 +447,28 @@ env_value_or_default() {
   fi
 }
 
+codex2api_admin_secret_needs_generation() {
+  case "$1" in
+    ""|"changeme"|"your-admin-password"|"your_admin_secret"|"your-secure-admin-password-here")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+codex2api_database_password_needs_generation() {
+  case "$1" in
+    ""|"codex2api"|"changeme"|"your_db_password"|"your-strong-db-password")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 resolve_stack_bind_path() {
   local stack_dir="$1"
   local bind_path="$2"
@@ -413,13 +493,33 @@ codex2api_prepare_stack_dirs() {
   local redis_dir
   local logs_dir
 
-  postgres_dir="$(resolve_stack_bind_path "$stack_dir" "$(env_value_or_default "$env_path" "POSTGRES_DATA_DIR" "./data/postgres")")"
-  redis_dir="$(resolve_stack_bind_path "$stack_dir" "$(env_value_or_default "$env_path" "REDIS_DATA_DIR" "./data/redis")")"
+  postgres_dir="$(resolve_stack_bind_path "$stack_dir" "$(env_value_or_default "$env_path" "POSTGRES_DATA_DIR" "./data/codex2api-postgres")")"
+  redis_dir="$(resolve_stack_bind_path "$stack_dir" "$(env_value_or_default "$env_path" "REDIS_DATA_DIR" "./data/codex2api-redis")")"
   logs_dir="$(resolve_stack_bind_path "$stack_dir" "$(env_value_or_default "$env_path" "LOGS_DIR" "./logs")")"
 
   ensure_privileged_dir "$postgres_dir" "root"
   ensure_privileged_dir "$redis_dir" "root"
   ensure_privileged_dir "$logs_dir" "root"
+}
+
+codex2api_postgres_data_dir() {
+  local stack_dir="$1"
+  local env_path="${2:-}"
+
+  if [ -n "$env_path" ] && [ -f "$env_path" ]; then
+    resolve_stack_bind_path "$stack_dir" "$(env_value_or_default "$env_path" "POSTGRES_DATA_DIR" "./data/codex2api-postgres")"
+  else
+    printf '%s/%s\n' "$stack_dir" "data/codex2api-postgres"
+  fi
+}
+
+codex2api_has_existing_postgres_data() {
+  local stack_dir="$1"
+  local env_path="${2:-}"
+  local postgres_dir
+
+  postgres_dir="$(codex2api_postgres_data_dir "$stack_dir" "$env_path")"
+  [ -f "$postgres_dir/PG_VERSION" ] || dir_has_entries "$postgres_dir"
 }
 
 codex2api_run_compose() {
@@ -510,6 +610,7 @@ codex2api_configure_env() {
   local image_tag="$5"
   local project_name="$6"
   local codex_port="$7"
+  local fresh_install="${8:-0}"
   local admin_secret
   local database_password
 
@@ -520,8 +621,8 @@ codex2api_configure_env() {
   env_upsert_value "$env_path" "COMPOSE_PROJECT_NAME" "$project_name"
   env_upsert_value "$env_path" "CODEX_PORT" "$codex_port"
 
-  ensure_env_value "$env_path" "POSTGRES_DATA_DIR" "./data/postgres"
-  ensure_env_value "$env_path" "REDIS_DATA_DIR" "./data/redis"
+  ensure_env_value "$env_path" "POSTGRES_DATA_DIR" "./data/codex2api-postgres"
+  ensure_env_value "$env_path" "REDIS_DATA_DIR" "./data/codex2api-redis"
   ensure_env_value "$env_path" "LOGS_DIR" "./logs"
   ensure_env_value "$env_path" "DATABASE_DRIVER" "postgres"
   ensure_env_value "$env_path" "DATABASE_HOST" "postgres"
@@ -534,12 +635,16 @@ codex2api_configure_env() {
   ensure_env_value "$env_path" "TZ" "Asia/Shanghai"
 
   admin_secret="$(env_get_value "$env_path" "ADMIN_SECRET" 2>/dev/null || true)"
-  if [ -z "$admin_secret" ]; then
+  if [ "$fresh_install" = "1" ] && codex2api_admin_secret_needs_generation "$admin_secret"; then
+    env_upsert_value "$env_path" "ADMIN_SECRET" "$(generate_random_secret 24)"
+  elif [ -z "$admin_secret" ]; then
     env_upsert_value "$env_path" "ADMIN_SECRET" "$(generate_random_secret 24)"
   fi
 
   database_password="$(env_get_value "$env_path" "DATABASE_PASSWORD" 2>/dev/null || true)"
-  if [ -z "$database_password" ]; then
+  if [ "$fresh_install" = "1" ] && codex2api_database_password_needs_generation "$database_password"; then
+    env_upsert_value "$env_path" "DATABASE_PASSWORD" "$(generate_random_secret 24)"
+  elif [ -z "$database_password" ]; then
     env_upsert_value "$env_path" "DATABASE_PASSWORD" "$(generate_random_secret 24)"
   fi
 
@@ -547,8 +652,39 @@ codex2api_configure_env() {
   run_privileged chown root:root "$env_path"
 }
 
+codex2api_write_install_info() {
+  local stack_dir="$1"
+  local env_path="$2"
+  local codex_port="$3"
+  local info_path
+  local admin_secret
+  local database_password
+  local temp_file
+
+  info_path="$(codex2api_install_info_path)"
+  admin_secret="$(env_get_value "$env_path" "ADMIN_SECRET" 2>/dev/null || true)"
+  database_password="$(env_get_value "$env_path" "DATABASE_PASSWORD" 2>/dev/null || true)"
+  temp_file="$(mktemp)"
+
+  cat >"$temp_file" <<EOF
+codex2api 部署信息
+
+部署目录: $stack_dir
+访问地址: http://localhost:$codex_port
+管理后台: http://localhost:$codex_port/admin/
+
+ADMIN_SECRET=$admin_secret
+DATABASE_PASSWORD=$database_password
+EOF
+
+  run_privileged mv "$temp_file" "$info_path"
+  run_privileged chmod 600 "$info_path"
+  run_privileged chown root:root "$info_path"
+}
+
 install_codex2api_stack() {
   local stack_dir
+  local compose_path
   local env_path
   local settings
   local repo_owner
@@ -557,8 +693,10 @@ install_codex2api_stack() {
   local image_tag
   local project_name
   local codex_port
+  local conflict_names
 
   stack_dir="$(codex2api_stack_dir)"
+  compose_path="$(codex2api_compose_path)"
   env_path="$(codex2api_env_path)"
   ensure_privileged_dir "$(docker_stack_root)" "root"
   ensure_privileged_dir "$stack_dir" "root"
@@ -570,18 +708,38 @@ install_codex2api_stack() {
     return 0
   fi
 
+  if codex2api_has_existing_postgres_data "$stack_dir"; then
+    warn "检测到已存在的 PostgreSQL 数据目录：$(codex2api_postgres_data_dir "$stack_dir")"
+    warn "这通常表示之前部署过 codex2api，但只清掉了 compose 文件或容器，没有清掉数据目录。"
+    warn "PostgreSQL 只会在首次初始化时读取 DATABASE_PASSWORD；当前继续安装会导致数据库密码与 .env 不一致。"
+    log "如需保留旧数据，请恢复原 .env 后执行“更新 docker 镜像和容器”。"
+    log "如无需保留旧数据，请先删除目录后再重装：$(codex2api_postgres_data_dir "$stack_dir")"
+    return 1
+  fi
+
   settings="$(codex2api_collect_settings "$env_path")"
   IFS='|' read -r repo_owner repo_ref ghcr_owner image_tag project_name <<<"$settings"
   codex_port="$(random_available_port)" || return 1
 
   codex2api_sync_remote_files "$repo_owner" "$repo_ref" || return 1
-  codex2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$ghcr_owner" "$image_tag" "$project_name" "$codex_port"
+  conflict_names="$(codex2api_conflicting_container_names "$compose_path" "$project_name" 2>/dev/null | sort -u)"
+  if [ -n "$conflict_names" ]; then
+    warn "检测到已存在的同名容器，已停止安装："
+    printf '%s\n' "$conflict_names" >&2
+    warn "请先清理这些容器，或修改 COMPOSE_PROJECT_NAME 后再安装。"
+    return 1
+  fi
+  codex2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$ghcr_owner" "$image_tag" "$project_name" "$codex_port" "1"
   codex2api_prepare_stack_dirs "$stack_dir" "$env_path"
 
   codex2api_run_compose "$stack_dir" "docker compose pull && docker compose up -d" || return 1
+  codex2api_write_install_info "$stack_dir" "$env_path" "$codex_port"
   log "codex2api 已部署，配置目录：$stack_dir"
   log "访问地址：http://localhost:$codex_port"
-  log "管理后台密钥和数据库密码已写入：$env_path"
+  log "管理后台：http://localhost:$codex_port/admin/"
+  log "ADMIN_SECRET: $(env_get_value "$env_path" "ADMIN_SECRET" 2>/dev/null || true)"
+  log "数据库密码和管理后台密钥已写入：$env_path"
+  log "安装信息文件：$(codex2api_install_info_path)"
 }
 
 update_codex2api_stack() {
@@ -614,12 +772,15 @@ update_codex2api_stack() {
     "$(env_value_or_default "$env_path" "GHCR_OWNER" "$repo_owner")" \
     "$(env_value_or_default "$env_path" "CODEX_IMAGE_TAG" "latest")" \
     "$(env_value_or_default "$env_path" "COMPOSE_PROJECT_NAME" "codex2api")" \
-    "$codex_port"
+    "$codex_port" \
+    "0"
   codex2api_prepare_stack_dirs "$stack_dir" "$env_path"
 
   codex2api_run_compose "$stack_dir" "docker compose pull && docker compose up -d" || return 1
+  codex2api_write_install_info "$stack_dir" "$env_path" "$codex_port"
   log "codex2api 已更新，配置目录：$stack_dir"
   log "访问地址：http://localhost:$codex_port"
+  log "安装信息文件：$(codex2api_install_info_path)"
 }
 
 remove_codex2api_stack() {
