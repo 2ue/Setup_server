@@ -584,6 +584,9 @@ codex2api_collect_settings() {
   local ghcr_owner
   local image_tag
   local project_name
+  local codex_port
+  local admin_secret
+  local database_password
 
   repo_owner="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_OWNER" "yyssp")"
   repo_ref="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_REF" "main")"
@@ -599,7 +602,28 @@ codex2api_collect_settings() {
     project_name="$(prompt_with_default "设置 Compose 项目标识" "$project_name")"
   fi
 
-  printf '%s\n' "$repo_owner|$repo_ref|$ghcr_owner|$image_tag|$project_name"
+  while true; do
+    read -r -p "设置 codex2api 访问端口（回车自动分配空闲端口）: " codex_port
+    if [ -z "$codex_port" ]; then
+      break
+    fi
+    if ! [[ "$codex_port" =~ ^[0-9]+$ ]] || [ "$codex_port" -lt 1 ] || [ "$codex_port" -gt 65535 ]; then
+      warn "端口无效：$codex_port，请重新输入"
+      continue
+    fi
+    if port_is_in_use "$codex_port"; then
+      warn "端口已被占用：$codex_port，请重新输入"
+      continue
+    fi
+    break
+  done
+
+  read -r -s -p "设置 ADMIN_SECRET（回车自动生成）: " admin_secret
+  echo
+  read -r -s -p "设置数据库密码（回车自动生成）: " database_password
+  echo
+
+  printf '%s\n' "$repo_owner|$repo_ref|$ghcr_owner|$image_tag|$project_name|$codex_port|$admin_secret|$database_password"
 }
 
 codex2api_configure_env() {
@@ -610,7 +634,9 @@ codex2api_configure_env() {
   local image_tag="$5"
   local project_name="$6"
   local codex_port="$7"
-  local fresh_install="${8:-0}"
+  local admin_secret_override="${8:-}"
+  local database_password_override="${9:-}"
+  local fresh_install="${10:-0}"
   local admin_secret
   local database_password
 
@@ -625,15 +651,18 @@ codex2api_configure_env() {
   ensure_env_value "$env_path" "REDIS_DATA_DIR" "./data/codex2api-redis"
   ensure_env_value "$env_path" "LOGS_DIR" "./logs"
   ensure_env_value "$env_path" "DATABASE_DRIVER" "postgres"
-  ensure_env_value "$env_path" "DATABASE_HOST" "postgres"
+  ensure_env_value "$env_path" "DATABASE_HOST" "codex2api-postgres"
   ensure_env_value "$env_path" "DATABASE_PORT" "5432"
   ensure_env_value "$env_path" "DATABASE_USER" "codex2api"
   ensure_env_value "$env_path" "DATABASE_NAME" "codex2api"
   ensure_env_value "$env_path" "CACHE_DRIVER" "redis"
-  ensure_env_value "$env_path" "REDIS_ADDR" "redis:6379"
+  ensure_env_value "$env_path" "REDIS_ADDR" "codex2api-redis:6379"
   ensure_env_value "$env_path" "REDIS_DB" "0"
   ensure_env_value "$env_path" "TZ" "Asia/Shanghai"
 
+  if [ -n "$admin_secret_override" ]; then
+    env_upsert_value "$env_path" "ADMIN_SECRET" "$admin_secret_override"
+  fi
   admin_secret="$(env_get_value "$env_path" "ADMIN_SECRET" 2>/dev/null || true)"
   if [ "$fresh_install" = "1" ] && codex2api_admin_secret_needs_generation "$admin_secret"; then
     env_upsert_value "$env_path" "ADMIN_SECRET" "$(generate_random_secret 24)"
@@ -641,6 +670,9 @@ codex2api_configure_env() {
     env_upsert_value "$env_path" "ADMIN_SECRET" "$(generate_random_secret 24)"
   fi
 
+  if [ -n "$database_password_override" ]; then
+    env_upsert_value "$env_path" "DATABASE_PASSWORD" "$database_password_override"
+  fi
   database_password="$(env_get_value "$env_path" "DATABASE_PASSWORD" 2>/dev/null || true)"
   if [ "$fresh_install" = "1" ] && codex2api_database_password_needs_generation "$database_password"; then
     env_upsert_value "$env_path" "DATABASE_PASSWORD" "$(generate_random_secret 24)"
@@ -693,6 +725,8 @@ install_codex2api_stack() {
   local image_tag
   local project_name
   local codex_port
+  local admin_secret
+  local database_password
   local conflict_names
 
   stack_dir="$(codex2api_stack_dir)"
@@ -717,9 +751,11 @@ install_codex2api_stack() {
     return 1
   fi
 
-  settings="$(codex2api_collect_settings "$env_path")"
-  IFS='|' read -r repo_owner repo_ref ghcr_owner image_tag project_name <<<"$settings"
-  codex_port="$(random_available_port)" || return 1
+  settings="$(codex2api_collect_settings "$env_path")" || return 1
+  IFS='|' read -r repo_owner repo_ref ghcr_owner image_tag project_name codex_port admin_secret database_password <<<"$settings"
+  if [ -z "$codex_port" ]; then
+    codex_port="$(random_available_port)" || return 1
+  fi
 
   codex2api_sync_remote_files "$repo_owner" "$repo_ref" || return 1
   conflict_names="$(codex2api_conflicting_container_names "$compose_path" "$project_name" 2>/dev/null | sort -u)"
@@ -729,7 +765,7 @@ install_codex2api_stack() {
     warn "请先清理这些容器，或修改 COMPOSE_PROJECT_NAME 后再安装。"
     return 1
   fi
-  codex2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$ghcr_owner" "$image_tag" "$project_name" "$codex_port" "1"
+  codex2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$ghcr_owner" "$image_tag" "$project_name" "$codex_port" "$admin_secret" "$database_password" "1"
   codex2api_prepare_stack_dirs "$stack_dir" "$env_path"
 
   codex2api_run_compose "$stack_dir" "docker compose pull && docker compose up -d" || return 1
@@ -773,6 +809,8 @@ update_codex2api_stack() {
     "$(env_value_or_default "$env_path" "CODEX_IMAGE_TAG" "latest")" \
     "$(env_value_or_default "$env_path" "COMPOSE_PROJECT_NAME" "codex2api")" \
     "$codex_port" \
+    "" \
+    "" \
     "0"
   codex2api_prepare_stack_dirs "$stack_dir" "$env_path"
 
