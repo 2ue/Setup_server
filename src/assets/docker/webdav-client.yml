@@ -1,7 +1,6 @@
 # webdav 客户端
-# 文件位置：$HOME/webdav-client.yml
+# 部署目录：/root/docker-compose/webdav-client/docker-compose.yml
 
-version: "3"
 services:
   webdav-client:
     container_name: webdav-client

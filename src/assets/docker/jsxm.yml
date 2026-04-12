@@ -1,7 +1,6 @@
 # FastTracker 2 .xm module player in Javascript
-# File location：$HOME/fsxm.yml
+# Deployment path: /root/docker-compose/jsxm/docker-compose.yml
 
-version: "3"
 services:
   fsxm:
     image: tsanfer/jsxm:latest

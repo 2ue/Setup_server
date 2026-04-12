@@ -1,7 +1,6 @@
 # 订阅转换后端
-# 文件位置：$HOME/subconverter.yml
+# 部署目录：/root/docker-compose/subconverter/docker-compose.yml
 
-version: "3"
 services:
   subconverter:
     container_name: subconverter

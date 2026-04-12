@@ -1,6 +1,5 @@
 # 自动化更新 Docker 镜像和容器
 
-version: "3"
 services:
   watchtower:
     image: containrrr/watchtower

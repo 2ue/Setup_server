@@ -1,11 +1,10 @@
 # 订阅转换前端
-# 文件位置：$HOME/sub-web.yml
+# 部署目录：/root/docker-compose/sub-web/docker-compose.yml
 
-version: "3"
 services:
   subweb:
     container_name: sub-web
-    build: ~/sub-web
+    build: ./sub-web
     ports:
       - 58080:80
     restart: always

@@ -1,7 +1,5 @@
 # FTP 服务器
-# 文件位置：$HOME/pure-ftpd.yml
-
-version: "3"
+# 部署目录：/root/docker-compose/pure-ftpd/docker-compose.yml
 
 services:
   ftpd_server:
@@ -11,8 +9,8 @@ services:
       - 21:21 # FTP 主动端口
       - 30000-30009:30000-30009 # FTP 被动端口
     volumes:
-      - ~/web_server/:/home/username/ # FTP 服务器根目录映射
-      - ~/ftp_passwd:/etc/pure-ftpd/passwd # FTP 密码（已加密）
+      - ./web_root:/home/username/ # FTP 服务器根目录映射
+      - ./ftp_passwd:/etc/pure-ftpd/passwd # FTP 密码（已加密）
     environment:
       # - PUBLICHOST=tsanfer.com
       - FTP_USER_NAME

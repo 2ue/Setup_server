@@ -1,4 +1,8 @@
-# 个人 Debian/Ubuntu 服务器自动初始化脚本
+# Debian/Ubuntu 服务器自动初始化脚本
+
+> 当前维护仓库：[2ue/Setup_server](https://github.com/2ue/Setup_server) <br>
+> Fork 自：[Tsanfer/Setup_server](https://github.com/Tsanfer/Setup_server) <br>
+> 原项目 License 保持不变，原始版权声明见 [LICENSE](./LICENSE)
 
 > Linux 发行版：Debian 及其衍生版 <br>
 > Linux 发行版版本：Debian 11 及以上 LTS 支持版本 <br>
@@ -43,6 +47,15 @@
   |[mdserver-web](https://github.com/midoks/mdserver-web)|一款简单Linux面板服务（宝塔翻版）|`mw`|
   |[aaPanel](https://www.aapanel.com/new/index.html)|宝塔国外版|`bt`|
   |[1Panel](https://github.com/1Panel-dev/1Panel)|现代化、开源的 Linux 服务器运维管理面板|`1pctl`|
+
+- 开发工具链安装/更新
+  |工具|来源|说明|
+  |--|--|--|
+  |[Volta](https://docs.volta.sh/guide/getting-started/)|官方安装脚本|安装/更新 Volta 本身|
+  |Node.js 22|Volta|执行 `volta install node@22`，用于统一 Node 运行时|
+  |[ccman](https://github.com/2ue/ccman)|Volta / npm|安装后可选配置 WebDAV 同步并执行 `ccman sync download --yes`|
+  |[Codex CLI](https://developers.openai.com/codex/quickstart)|Volta / npm|执行 `volta install @openai/codex`|
+  |[Claude Code](https://docs.anthropic.com/en/docs/claude-code/quickstart)|Volta / npm|执行 `volta install @anthropic-ai/claude-code`|
   
 - 安装和更新 Docker
   > 调用 LinuxMirrors 脚本完成操作
@@ -62,6 +75,16 @@
   |[webdav-client](https://github.com/efrecon/docker-webdav-client)|Webdav 客户端，同步映射到宿主文件系统||
   |[watchtower](https://github.com/containrrr/watchtower)|自动化更新 Docker 镜像和容器||
   |[jsxm](https://github.com/a1k0n/jsxm)|Web 在线 xm 音乐播放器|`8081`|
+  |[Caddy](https://caddyserver.com/)|反向代理服务，可将某个域名转发到宿主机本地服务|`80` `443`|
+  |[codex2api](https://github.com/yyssp/codex2api)|Codex2API，一键拉取 compose 和 `.env.example`，自动生成密钥并在首次安装时分配空闲随机端口|随机|
+
+  所有通过 `docker compose` 安装的服务都会统一部署到 `/root/docker-compose/<service>/`，例如 `caddy` 会使用 `/root/docker-compose/caddy/docker-compose.yml`，`nginx` 会使用 `/root/docker-compose/nginx/docker-compose.yml`。
+
+  这些服务的挂载目录也都收敛在各自目录下，compose 文件统一使用相对路径。例如 `code-server` 会使用 `/root/docker-compose/code-server/config/`，`nginx` 会使用 `/root/docker-compose/nginx/html/`，`caddy` 会使用 `/root/docker-compose/caddy/Caddyfile`、`/root/docker-compose/caddy/data/`、`/root/docker-compose/caddy/config/`。
+
+  `caddy` 的部署目录为 `/root/docker-compose/caddy/`。安装时脚本会自动生成 `Caddyfile`，你只需要输入域名和本地服务地址，例如 `host.docker.internal:3000`。请确保域名已解析到当前服务器，且 `80/443` 端口已放行并未被其他服务占用。
+
+  `codex2api` 的部署目录默认在 `/root/docker-compose/codex2api/`，脚本会自动下载远程 `docker-compose.yml`、`.env.example`，首次部署时生成 `.env`，并补齐 `ADMIN_SECRET`、`DATABASE_PASSWORD`。首次安装会分配一个当前未占用的随机端口；如果本地已存在部署，则安装流程会直接提示改用更新；更新时默认沿用当前端口，仅在端口缺失或冲突时重新分配。
   
 - 清理 APT 空间
 
@@ -71,9 +94,9 @@
 (
   echo -n "是否从国内拉取脚本？[Y/n] "; read r; 
   if [ "$r" = "n" ] || [ "$r" = "N" ]; then
-    url="https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh"
+    url="https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh"
   else
-    url="https://ghfast.top/https://raw.githubusercontent.com/Tsanfer/Setup_server/main/Setup.sh"
+    url="https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh"
   fi;
   if ! command -v sudo >/dev/null 2>&1; then
     echo "请先安装 sudo" >&2; exit 1
@@ -87,3 +110,32 @@
   fi
 )
 ```
+
+## 源码结构
+
+项目现在分成两层：
+
+- `src/lib/`: 公共能力，例如下载、菜单注册、用户目录识别、交互提示。
+- `src/modules/`: 业务模块，新增功能优先放这里。
+- `src/assets/`: 内置资源，构建时直接打进最终脚本。
+- `scripts/build.sh`: 纯 Bash 构建脚本，用来生成发布版 `Setup.sh`。
+
+日常维护时不要直接改仓库根目录下的 `Setup.sh`，它是构建产物。
+
+## 构建
+
+```sh
+./scripts/build.sh
+```
+
+构建后会生成：
+
+- `Setup.sh`
+- `dist/Setup.sh`
+
+## 维护说明
+
+- 当前仓库发布地址和一键安装入口都应使用 `2ue/Setup_server`。
+- 上游仓库仍可作为功能来源参考，但不要再把 README 和发布命令写回 `Tsanfer/Setup_server`。
+- 如修改了 `src/` 下源码，请先运行 `./scripts/build.sh` 再提交生成后的 `Setup.sh`。
+- 新增的 `dev_toolchain` 模块会按官方方式执行 `curl https://get.volta.sh | bash`，因此目标机器需要可用的 `curl`。

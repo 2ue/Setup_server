@@ -1,7 +1,6 @@
 # 在线 web 目标识别
-# 文件位置：$HOME/web_object_detection.yml
+# 部署目录：/root/docker-compose/web_object_detection/docker-compose.yml
 
-version: "3"
 services:
   object_detection:
     image: tsanfer/web_object_detection

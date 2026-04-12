@@ -1,7 +1,6 @@
 # 一款简单Linux面板服务
-# 文件位置：$HOME/mdserver-web.yml
+# 部署目录：/root/docker-compose/mdserver-web/docker-compose.yml
 
-version: "3.3"
 services:
   mw-server:
     container_name: mw-server
