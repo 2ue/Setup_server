@@ -77,14 +77,17 @@
   |[jsxm](https://github.com/a1k0n/jsxm)|Web 在线 xm 音乐播放器|`8081`|
   |[Caddy](https://caddyserver.com/)|反向代理服务，可将某个域名转发到宿主机本地服务|`80` `443`|
   |[codex2api](https://github.com/yyssp/codex2api)|Codex2API，一键拉取 compose 和 `.env.example`，自动生成密钥并在首次安装时分配空闲随机端口|随机|
+  |[sub2api](https://github.com/Wei-Shaw/sub2api)|Sub2API，一键拉取 `deploy/docker-compose.local.yml` 和 `.env.example`，自动生成部署密钥并分配空闲随机端口|随机|
 
   所有通过 `docker compose` 安装的服务都会统一部署到 `/root/docker-compose/<service>/`，例如 `caddy` 会使用 `/root/docker-compose/caddy/docker-compose.yml`，`nginx` 会使用 `/root/docker-compose/nginx/docker-compose.yml`。
 
   这些服务的挂载目录也都收敛在各自目录下，compose 文件统一使用相对路径。例如 `code-server` 会使用 `/root/docker-compose/code-server/config/`，`nginx` 会使用 `/root/docker-compose/nginx/html/`，`caddy` 会使用 `/root/docker-compose/caddy/Caddyfile`、`/root/docker-compose/caddy/data/`、`/root/docker-compose/caddy/config/`。
 
-  `caddy` 的部署目录为 `/root/docker-compose/caddy/`。安装时脚本会自动生成 `Caddyfile`，你只需要输入域名和本地服务地址，例如 `host.docker.internal:3000`。请确保域名已解析到当前服务器，且 `80/443` 端口已放行并未被其他服务占用。
+  `caddy` 的部署目录为 `/root/docker-compose/caddy/`。安装时脚本会自动生成 `Caddyfile`，你只需要输入域名和本地服务地址，例如 `host.docker.internal:3000`。如果你是给 `sub2api` 做反代，安装/更新时还可以选择“适配 sub2api 的 Caddy 配置模板”，它会额外带上静态资源缓存、健康检查、来源 IP 透传、连接池和访问日志配置。请确保域名已解析到当前服务器，且 `80/443` 端口已放行并未被其他服务占用。
 
   `codex2api` 的部署目录默认在 `/root/docker-compose/codex2api/`，脚本会自动下载远程 `docker-compose.yml`、`.env.example`，首次部署时生成 `.env`，并补齐 `ADMIN_SECRET`、`DATABASE_PASSWORD`。首次安装会分配一个当前未占用的随机端口；如果本地已存在部署，则安装流程会直接提示改用更新；更新时默认沿用当前端口，仅在端口缺失或冲突时重新分配。
+
+  `sub2api` 的部署目录默认在 `/root/docker-compose/sub2api/`，脚本会自动下载远程 `deploy/docker-compose.local.yml` 作为 `docker-compose.yml`，并同步 `.env.example`。首次部署会创建 `.env`、`data/`、`postgres_data/`、`redis_data/`，同时补齐 `POSTGRES_PASSWORD`、`JWT_SECRET`、`TOTP_ENCRYPTION_KEY`、管理员邮箱/密码。首次安装会分配一个当前未占用的随机端口；如果检测到已有部署文件或历史数据目录，安装会直接停止，避免覆盖现有部署，并提示改用更新或先清理后重装。
   
 - 清理 APT 空间
 

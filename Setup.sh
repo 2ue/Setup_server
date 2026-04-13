@@ -3,7 +3,7 @@
 
 set -o pipefail
 
-SETUP_SERVER_BUILD_AT=2026-04-12T10:38:31Z
+SETUP_SERVER_BUILD_AT=2026-04-13T10:11:44Z
 
 # Core runtime helpers shared by all modules.
 
@@ -1212,8 +1212,8 @@ dev_toolchain() {
 
 register_module "dev_toolchain" "dev_toolchain" "安装/更新 Volta、Node.js、ccman、Codex、Claude Code" "dev_toolchain"
 
-DOCKER_KEYS=("code-server" "nginx" "pure-ftpd" "web_object_detection" "zfile" "subconverter" "sub-web" "mdserver-web" "qinglong" "webdav-client" "watchtower" "jsxm" "caddy" "codex2api")
-DOCKER_INFOS=("在线 Web IDE" "Web 服务器" "FTP 服务器" "在线 web 目标识别" "在线云盘" "订阅转换后端" "订阅转换前端" "一款简单Linux面板服务" "定时任务管理面板" "Webdav 客户端，同步映射到宿主文件系统" "自动化更新 Docker 镜像和容器" "Web 在线 xm 音乐播放器" "Caddy 反向代理（域名反代到本地服务）" "Codex2API 一键部署（自动拉取 compose 和 env）")
+DOCKER_KEYS=("code-server" "nginx" "pure-ftpd" "web_object_detection" "zfile" "subconverter" "sub-web" "mdserver-web" "qinglong" "webdav-client" "watchtower" "jsxm" "caddy" "codex2api" "sub2api")
+DOCKER_INFOS=("在线 Web IDE" "Web 服务器" "FTP 服务器" "在线 web 目标识别" "在线云盘" "订阅转换后端" "订阅转换前端" "一款简单Linux面板服务" "定时任务管理面板" "Webdav 客户端，同步映射到宿主文件系统" "自动化更新 Docker 镜像和容器" "Web 在线 xm 音乐播放器" "Caddy 反向代理（域名反代到本地服务）" "Codex2API 一键部署（自动拉取 compose 和 env）" "Sub2API AI API 网关平台（订阅分发与管理）")
 
 docker_stack_root() {
   printf '%s\n' "/root/docker-compose"
@@ -1258,166 +1258,6 @@ run_service_compose() {
   fi
 }
 
-caddy_stack_dir() {
-  docker_stack_dir "caddy"
-}
-
-caddyfile_path() {
-  printf '%s/%s\n' "$(caddy_stack_dir)" "Caddyfile"
-}
-
-caddy_data_dir() {
-  printf '%s/%s\n' "$(caddy_stack_dir)" "data"
-}
-
-caddy_config_dir() {
-  printf '%s/%s\n' "$(caddy_stack_dir)" "config"
-}
-
-caddy_current_domain() {
-  local caddyfile="$1"
-
-  [ -f "$caddyfile" ] || return 1
-  awk '
-    /^[[:space:]]*$/ { next }
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*\{/ { next }
-    /^[[:space:]]*\}/ { next }
-    {
-      gsub(/[[:space:]]*\{[[:space:]]*$/, "", $0)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
-      print
-      exit
-    }
-  ' "$caddyfile"
-}
-
-caddy_current_upstream() {
-  local caddyfile="$1"
-
-  [ -f "$caddyfile" ] || return 1
-  awk '
-    $1 == "reverse_proxy" {
-      print $2
-      exit
-    }
-  ' "$caddyfile"
-}
-
-prepare_caddy_stack_dirs() {
-  ensure_privileged_dir "$(docker_stack_root)" "root"
-  ensure_privileged_dir "$(caddy_stack_dir)" "root"
-  ensure_privileged_dir "$(caddy_data_dir)" "root"
-  ensure_privileged_dir "$(caddy_config_dir)" "root"
-}
-
-configure_caddy_reverse_proxy() {
-  local caddyfile
-  local temp_file
-  local default_domain
-  local default_upstream
-  local domain_name
-  local upstream_target
-
-  caddyfile="$(caddyfile_path)"
-  temp_file="$(mktemp)"
-  default_domain="$(caddy_current_domain "$caddyfile" 2>/dev/null || true)"
-  default_upstream="$(caddy_current_upstream "$caddyfile" 2>/dev/null || true)"
-
-  if [ -z "$default_domain" ]; then
-    default_domain="example.com"
-  fi
-  if [ -z "$default_upstream" ]; then
-    default_upstream="host.docker.internal:3000"
-  fi
-
-  domain_name="$(prompt_with_default "输入需要反向代理的域名" "$default_domain")"
-  while [ -z "$domain_name" ]; do
-    warn "域名不能为空"
-    domain_name="$(prompt_with_default "输入需要反向代理的域名" "$default_domain")"
-  done
-
-  upstream_target="$(prompt_with_default "输入本地服务地址（host:port）" "$default_upstream")"
-  while [ -z "$upstream_target" ]; do
-    warn "本地服务地址不能为空"
-    upstream_target="$(prompt_with_default "输入本地服务地址（host:port）" "$default_upstream")"
-  done
-
-  cat >"$temp_file" <<EOF
-$domain_name {
-    encode zstd gzip
-    reverse_proxy $upstream_target
-}
-EOF
-  run_privileged mv "$temp_file" "$caddyfile"
-  run_privileged chmod 644 "$caddyfile"
-  run_privileged chown root:root "$caddyfile"
-
-  log "Caddy 配置已写入：$caddyfile"
-  log "域名：$domain_name"
-  log "反代到：$upstream_target"
-}
-
-install_caddy_stack() {
-  local compose_path
-  local current_domain
-
-  compose_path="$(compose_file_path "caddy")"
-  prepare_docker_compose "caddy" || return 1
-  prepare_caddy_stack_dirs
-  configure_caddy_reverse_proxy || return 1
-
-  run_service_compose "caddy" up -d || return 1
-  current_domain="$(caddy_current_domain "$(caddyfile_path)" 2>/dev/null || true)"
-  log "Caddy 已部署。"
-  if [ -n "$current_domain" ]; then
-    log "请确保域名已解析到当前服务器：$current_domain"
-  fi
-  log "80/443 端口需要对外放行，且不应被其他服务占用。"
-}
-
-update_caddy_stack() {
-  local compose_path
-
-  compose_path="$(compose_file_path "caddy")"
-  prepare_docker_compose "caddy" || return 1
-  prepare_caddy_stack_dirs
-
-  if [ ! -f "$(caddyfile_path)" ]; then
-    configure_caddy_reverse_proxy || return 1
-  elif prompt_yes_no_default_no "是否同时更新 Caddy 反向代理配置？"; then
-    configure_caddy_reverse_proxy || return 1
-  fi
-
-  run_service_compose "caddy" pull || return 1
-  run_service_compose "caddy" up -d || return 1
-  log "Caddy 已更新。"
-}
-
-codex2api_stack_dir() {
-  docker_stack_dir "codex2api"
-}
-
-codex2api_compose_path() {
-  printf '%s/%s\n' "$(codex2api_stack_dir)" "docker-compose.yml"
-}
-
-codex2api_env_path() {
-  printf '%s/%s\n' "$(codex2api_stack_dir)" ".env"
-}
-
-codex2api_env_example_path() {
-  printf '%s/%s\n' "$(codex2api_stack_dir)" ".env.example"
-}
-
-codex2api_install_info_path() {
-  printf '%s/%s\n' "$(codex2api_stack_dir)" "INSTALL_INFO.txt"
-}
-
-codex2api_stack_exists() {
-  [ -f "$(codex2api_compose_path)" ] && [ -f "$(codex2api_env_path)" ]
-}
-
 compose_service_names() {
   local compose_path="$1"
 
@@ -1443,7 +1283,7 @@ docker_container_name_exists() {
   run_privileged docker ps -a --format '{{.Names}}' | grep -Fx -- "$container_name" >/dev/null 2>&1
 }
 
-codex2api_conflicting_container_names() {
+compose_conflicting_container_names() {
   local compose_path="$1"
   local project_name="$2"
   local service_name
@@ -1659,6 +1499,843 @@ env_value_or_default() {
   else
     printf '%s\n' "$current_value"
   fi
+}
+
+normalize_container_name() {
+  local compose_file="$1"
+  local container_name="$2"
+  local temp_file
+
+  temp_file="$(mktemp)"
+  if grep -q '^[[:space:]]*container_name:' "$compose_file"; then
+    run_privileged sed -i "s/^[[:space:]]*container_name:.*/    container_name: $container_name/" "$compose_file"
+    rm -f "$temp_file"
+    return 0
+  fi
+
+  awk -v name="$container_name" '
+    !inserted && /^[[:space:]]*image:/ {
+      print "    container_name: " name
+      inserted=1
+    }
+    { print }
+  ' "$compose_file" >"$temp_file" && run_privileged mv "$temp_file" "$compose_file"
+
+  run_privileged chmod 644 "$compose_file"
+  run_privileged chown root:root "$compose_file"
+}
+
+prepare_docker_compose() {
+  local service_name="$1"
+  local stack_dir
+  local compose_path
+  local temp_compose
+
+  stack_dir="$(docker_stack_dir "$service_name")"
+  compose_path="$(compose_file_path "$service_name")"
+  ensure_privileged_dir "$(docker_stack_root)" "root"
+  ensure_privileged_dir "$stack_dir" "root"
+
+  if [ "$service_name" = "qinglong" ]; then
+    temp_compose="$(mktemp)"
+    download_to "https://$github_raw/whyour/qinglong/master/docker/docker-compose.yml" "$temp_compose" || {
+      rm -f "$temp_compose"
+      return 1
+    }
+    run_privileged mv "$temp_compose" "$compose_path"
+    run_privileged chmod 644 "$compose_path"
+    run_privileged chown root:root "$compose_path"
+  else
+    install_asset_file_privileged "docker/$service_name.yml" "$compose_path" "root" 644 || return 1
+  fi
+
+  normalize_container_name "$compose_path" "$service_name" || return 1
+}
+
+service_stack_file_path() {
+  local service_name="$1"
+  local relative_path="$2"
+
+  printf '%s/%s\n' "$(docker_stack_dir "$service_name")" "$relative_path"
+}
+
+prepare_standard_service_stack_dirs() {
+  local service_name="$1"
+  local stack_dir
+  local temp_file
+
+  stack_dir="$(docker_stack_dir "$service_name")"
+  ensure_privileged_dir "$(docker_stack_root)" "root"
+  ensure_privileged_dir "$stack_dir" "root"
+
+  case "$service_name" in
+    code-server)
+      ensure_privileged_dir "$(service_stack_file_path "$service_name" "config")" "root"
+      ;;
+    nginx)
+      ensure_privileged_dir "$(service_stack_file_path "$service_name" "html")" "root"
+      if [ ! -f "$(service_stack_file_path "$service_name" "html/index.html")" ]; then
+        temp_file="$(mktemp)"
+        cat >"$temp_file" <<'EOF'
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>nginx</title>
+  </head>
+  <body>
+    <h1>nginx is running</h1>
+  </body>
+</html>
+EOF
+        run_privileged mv "$temp_file" "$(service_stack_file_path "$service_name" "html/index.html")"
+        run_privileged chmod 644 "$(service_stack_file_path "$service_name" "html/index.html")"
+      fi
+      ;;
+    pure-ftpd)
+      ensure_privileged_dir "$(service_stack_file_path "$service_name" "web_root")" "root"
+      ensure_privileged_dir "$(service_stack_file_path "$service_name" "ftp_passwd")" "root"
+      ;;
+    zfile)
+      ensure_privileged_dir "$(service_stack_file_path "$service_name" "zfile/db")" "root"
+      ensure_privileged_dir "$(service_stack_file_path "$service_name" "zfile/logs")" "root"
+      ensure_privileged_dir "$(service_stack_file_path "$service_name" "zfile/file")" "root"
+      if [ ! -f "$(service_stack_file_path "$service_name" "application.properties")" ]; then
+        run_privileged touch "$(service_stack_file_path "$service_name" "application.properties")"
+        run_privileged chmod 644 "$(service_stack_file_path "$service_name" "application.properties")"
+      fi
+      ;;
+  esac
+}
+
+show_docker_inventory() {
+  echo
+  log "已下载的 Docker 镜像:"
+  run_privileged docker images -a
+  echo
+  log "已安装的 Docker 容器:"
+  run_privileged docker ps -a
+}
+
+render_docker_menu() {
+  local i
+
+  for i in "${!DOCKER_KEYS[@]}"; do
+    printf "%2s. %-20s%s\n" "$i" "${DOCKER_KEYS[$i]}" "${DOCKER_INFOS[$i]}"
+  done
+}
+
+write_env_kv() {
+  local env_path="$1"
+  local temp_file
+  shift
+
+  temp_file="$(mktemp)"
+  : >"$temp_file"
+  while [ "$#" -gt 0 ]; do
+    printf '%s\n' "$1" >>"$temp_file"
+    shift
+  done
+
+  ensure_privileged_dir "$(dirname "$env_path")" "root"
+  run_privileged mv "$temp_file" "$env_path"
+  run_privileged chmod 600 "$env_path"
+  run_privileged chown root:root "$env_path"
+}
+
+docker_init() {
+  print_section "安装/更新 Docker"
+
+  while true; do
+    read -r -p "是否配置国内源安装 docker? [Y/n] " input
+    case "$input" in
+      ""|[yY])
+        run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
+        break
+        ;;
+      [nN])
+        run_privileged mkdir -p /etc/apt/sources.list.d
+        run_remote_script "https://get.docker.com" || return 1
+        break
+        ;;
+      *)
+        log "错误选项：$input"
+        ;;
+    esac
+  done
+
+  log "安装/更新 docker 环境完成!"
+}
+
+install_sub_web_assets() {
+  local backend_address="$1"
+  local repo_path
+  local env_file
+
+  repo_path="$(service_stack_file_path "sub-web" "sub-web")"
+  env_file="$repo_path/.env"
+  ensure_privileged_dir "$(docker_stack_dir "sub-web")" "root"
+  if [ -d "$repo_path/.git" ]; then
+    run_privileged git -C "$repo_path" pull --ff-only || return 1
+  else
+    run_privileged rm -rf "$repo_path"
+    run_privileged git clone "https://$github_repo/CareyWang/sub-web" "$repo_path" || return 1
+  fi
+
+  if [ -f "$env_file" ]; then
+    if grep -q '^VUE_APP_SUBCONVERTER_DEFAULT_BACKEND' "$env_file"; then
+      run_privileged sed -i "s|^VUE_APP_SUBCONVERTER_DEFAULT_BACKEND.*|VUE_APP_SUBCONVERTER_DEFAULT_BACKEND = \"http://$backend_address\"|" "$env_file"
+    else
+      printf '%s\n' "VUE_APP_SUBCONVERTER_DEFAULT_BACKEND = \"http://$backend_address\"" | run_privileged tee -a "$env_file" >/dev/null
+    fi
+    run_privileged chown root:root "$env_file"
+  fi
+}
+
+sub_web_current_backend() {
+  local env_file
+  local backend_value
+
+  env_file="$(service_stack_file_path "sub-web" "sub-web/.env")"
+  [ -f "$env_file" ] || return 1
+
+  backend_value="$(awk '
+    /^[[:space:]]*VUE_APP_SUBCONVERTER_DEFAULT_BACKEND[[:space:]]*=/ {
+      sub(/^[^=]*=[[:space:]]*/, "", $0)
+      gsub(/^["'"'"']|["'"'"']$/, "", $0)
+      sub(/^https?:\/\//, "", $0)
+      print
+      exit
+    }
+  ' "$env_file")"
+
+  [ -n "$backend_value" ] || return 1
+  printf '%s\n' "$backend_value"
+}
+
+update_generic_docker_stack() {
+  local service_name="$1"
+  local current_backend
+
+  if ! docker_service_stack_exists "$service_name"; then
+    warn "未找到 ${service_name} 的部署目录：$(docker_stack_dir "$service_name")"
+    return 1
+  fi
+
+  case "$service_name" in
+    sub-web)
+      current_backend="$(sub_web_current_backend 2>/dev/null || true)"
+      install_sub_web_assets "${current_backend:-api.tsanfer.com:25500}" || return 1
+      run_service_compose "$service_name" up -d --build || return 1
+      ;;
+    *)
+      run_service_compose "$service_name" pull || return 1
+      run_service_compose "$service_name" up -d || return 1
+      ;;
+  esac
+
+  log "${service_name} 已更新，部署目录：$(docker_stack_dir "$service_name")"
+}
+
+remove_generic_docker_stack() {
+  local service_name="$1"
+
+  if docker_service_stack_exists "$service_name"; then
+    run_service_compose "$service_name" down || return 1
+    log "${service_name} 已停止并移除，部署目录仍保留：$(docker_stack_dir "$service_name")"
+    return 0
+  fi
+
+  run_privileged docker rm -f "$service_name" 2>/dev/null || run_privileged docker stop "$service_name"
+}
+
+install_selected_docker() {
+  local selection="$1"
+  local service_name
+  local compose_path
+  local env_path
+  local password
+  local sudo_password
+  local ftp_username
+  local ftp_password
+  local sub_web_backend
+  local webdav_url
+  local webdav_user
+  local webdav_pass
+  local webdav_local_path
+  local update_interval
+
+  service_name="$(docker_service_name_by_selection "$selection" 2>/dev/null || true)"
+  if [ -z "$service_name" ]; then
+    log "错误选项：$selection"
+    return 1
+  fi
+
+  if [ "$service_name" = "codex2api" ]; then
+    install_codex2api_stack
+    return $?
+  fi
+
+  if [ "$service_name" = "sub2api" ]; then
+    install_sub2api_stack
+    return $?
+  fi
+
+  if [ "$service_name" = "caddy" ]; then
+    install_caddy_stack
+    return $?
+  fi
+
+  compose_path="$(compose_file_path "$service_name")"
+  env_path="$(compose_env_path "$service_name")"
+  prepare_docker_compose "$service_name" || return 1
+  prepare_standard_service_stack_dirs "$service_name"
+
+  case "$selection" in
+    0)
+      read -r -s -p "设置密码: " password
+      echo
+      read -r -s -p "设置 sudo 密码: " sudo_password
+      echo
+      write_env_kv "$env_path" "PASSWORD=$password" "SUDO_PASSWORD=$sudo_password"
+      run_service_compose "$service_name" up -d
+      ;;
+    1|3|4|5|7|8|11)
+      run_service_compose "$service_name" up -d
+      ;;
+    2)
+      read -r -p "设置 ftp 用户名: " ftp_username
+      read -r -s -p "设置 ftp 密码: " ftp_password
+      echo
+      write_env_kv "$env_path" "FTP_USER_NAME=$ftp_username" "FTP_USER_PASS=$ftp_password"
+      run_service_compose "$service_name" up -d
+      ;;
+    6)
+      sub_web_backend="$(prompt_with_default "设置订阅转换后端地址" "api.tsanfer.com:25500")"
+      install_sub_web_assets "$sub_web_backend" || return 1
+      run_service_compose "$service_name" up -d
+      ;;
+    9)
+      webdav_url="$(prompt_with_default "输入 webdav 服务器地址(url)" "https://dav.jianguoyun.com/dav/我的坚果云")"
+      webdav_user="$(prompt_with_default "输入 webdav 用户名" "a1124851454@gmail.com")"
+      read -r -s -p "输入 webdav 密码: " webdav_pass
+      echo
+      webdav_local_path="$(prompt_with_default "输入 webdav 本地目录" "/mnt/webdav")"
+      write_env_kv "$env_path" \
+        "WEBDRIVE_URL=$webdav_url" \
+        "WEBDRIVE_USERNAME=$webdav_user" \
+        "WEBDRIVE_PASSWORD=$webdav_pass" \
+        "WEBDRIVE_LOCAL_PATH=$webdav_local_path"
+      run_service_compose "$service_name" up -d
+      ;;
+    10)
+      update_interval="$(prompt_with_default "设置 Docker 镜像检查更新频率，单位：秒" "30")"
+      write_env_kv "$env_path" "INTERVAL=$update_interval"
+      run_service_compose "$service_name" up -d
+      ;;
+  esac
+}
+
+docker_install() {
+  print_section "从 Docker compose 部署 docker 容器"
+  log "检查 Docker 状态..."
+
+  if ! command_exists docker; then
+    warn "Docker 未安装!"
+    return 1
+  fi
+
+  while true; do
+    echo
+    log "已安装的 Docker 容器:"
+    run_privileged docker ps -a
+    render_docker_menu
+    read -r -p "选择需要安装的 Docker 容器序号 (q:退出): " input
+
+    case "$input" in
+      [qQ])
+        break
+        ;;
+      *)
+        install_selected_docker "$input"
+        ;;
+    esac
+  done
+
+  show_docker_inventory
+}
+
+docker_update() {
+  print_section "更新 docker 镜像和容器"
+  log "检查 Docker 状态..."
+
+  if ! command_exists docker; then
+    warn "Docker 未安装!"
+    return 1
+  fi
+
+  echo
+  log "已安装的 Docker 容器:"
+  run_privileged docker ps -a
+
+  while true; do
+    local service_name
+
+    render_docker_menu
+    read -r -p "选择需要更新的 Docker 容器序号 (q:退出): " input
+
+    service_name="$(docker_service_name_by_selection "$input" 2>/dev/null || true)"
+    case "$input" in
+      [qQ])
+        break
+        ;;
+    esac
+
+    case "$service_name" in
+      caddy)
+        update_caddy_stack
+        ;;
+      codex2api)
+        update_codex2api_stack
+        ;;
+      sub2api)
+        update_sub2api_stack
+        ;;
+      "")
+        log "错误选项：$input"
+        ;;
+      *)
+        update_generic_docker_stack "$service_name"
+        ;;
+    esac
+  done
+
+  show_docker_inventory
+}
+
+docker_remove() {
+  local service_name
+
+  print_section "删除 docker 镜像和容器"
+  log "检查 Docker 状态..."
+
+  if ! command_exists docker; then
+    warn "Docker 未安装!"
+    return 1
+  fi
+
+  echo
+  log "已安装的 Docker 容器:"
+  run_privileged docker ps -a
+
+  while true; do
+    local service_name
+
+    render_docker_menu
+    read -r -p "选择需要删除的 Docker 容器序号 (q:退出): " input
+
+    service_name="$(docker_service_name_by_selection "$input" 2>/dev/null || true)"
+    case "$input" in
+      [qQ])
+        break
+        ;;
+    esac
+
+    case "$service_name" in
+      codex2api)
+        remove_codex2api_stack
+        ;;
+      sub2api)
+        remove_sub2api_stack
+        ;;
+      "")
+        log "错误选项：$input"
+        ;;
+      *)
+        remove_generic_docker_stack "$service_name"
+        ;;
+    esac
+  done
+
+  if prompt_yes_no_default_no "是否同时清理未使用的 Docker 镜像和缓存"; then
+    run_privileged docker system prune -a -f
+  fi
+  show_docker_inventory
+}
+
+register_module "docker_init" "docker_init" "安装，更新 Docker" "docker_init"
+register_module "docker_install" "docker_install" "从 Docker compose 部署 docker 容器" "docker_install"
+register_module "docker_update" "docker_update" "更新 docker 镜像和容器" "docker_update"
+register_module "docker_remove" "docker_remove" "删除 docker 镜像和容器" "docker_remove"
+
+caddy_stack_dir() {
+  docker_stack_dir "caddy"
+}
+
+caddyfile_path() {
+  printf '%s/%s\n' "$(caddy_stack_dir)" "Caddyfile"
+}
+
+caddy_data_dir() {
+  printf '%s/%s\n' "$(caddy_stack_dir)" "data"
+}
+
+caddy_config_dir() {
+  printf '%s/%s\n' "$(caddy_stack_dir)" "config"
+}
+
+caddy_logs_dir() {
+  printf '%s/%s\n' "$(caddy_data_dir)" "logs"
+}
+
+caddy_current_profile() {
+  local caddyfile="$1"
+
+  [ -f "$caddyfile" ] || return 1
+  awk -F': ' '
+    /^#[[:space:]]*setup-server-caddy-profile:/ {
+      print $2
+      exit
+    }
+  ' "$caddyfile"
+}
+
+caddy_current_domain() {
+  local caddyfile="$1"
+
+  [ -f "$caddyfile" ] || return 1
+  awk '
+    /^[[:space:]]*$/ { next }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*\{/ { next }
+    /^[[:space:]]*\}/ { next }
+    {
+      gsub(/[[:space:]]*\{[[:space:]]*$/, "", $0)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", $0)
+      print
+      exit
+    }
+  ' "$caddyfile"
+}
+
+caddy_current_upstream() {
+  local caddyfile="$1"
+
+  [ -f "$caddyfile" ] || return 1
+  awk '
+    $1 == "reverse_proxy" {
+      print $2
+      exit
+    }
+  ' "$caddyfile"
+}
+
+prepare_caddy_stack_dirs() {
+  ensure_privileged_dir "$(docker_stack_root)" "root"
+  ensure_privileged_dir "$(caddy_stack_dir)" "root"
+  ensure_privileged_dir "$(caddy_data_dir)" "root"
+  ensure_privileged_dir "$(caddy_config_dir)" "root"
+  ensure_privileged_dir "$(caddy_logs_dir)" "root"
+}
+
+caddy_default_sub2api_upstream() {
+  local env_path
+  local sub2api_port
+
+  env_path="$(sub2api_env_path 2>/dev/null || true)"
+  if [ -n "$env_path" ] && [ -f "$env_path" ]; then
+    sub2api_port="$(env_value_or_default "$env_path" "SERVER_PORT" "8080")"
+  else
+    sub2api_port="8080"
+  fi
+
+  printf 'host.docker.internal:%s\n' "$sub2api_port"
+}
+
+caddy_sub2api_request_body_limit() {
+  local env_path
+  local gateway_bytes
+  local server_bytes
+  local max_bytes
+
+  env_path="$(sub2api_env_path 2>/dev/null || true)"
+  gateway_bytes="268435456"
+  server_bytes="268435456"
+
+  if [ -n "$env_path" ] && [ -f "$env_path" ]; then
+    gateway_bytes="$(env_value_or_default "$env_path" "GATEWAY_MAX_BODY_SIZE" "$gateway_bytes")"
+    server_bytes="$(env_value_or_default "$env_path" "SERVER_MAX_REQUEST_BODY_SIZE" "$server_bytes")"
+  fi
+
+  if ! [[ "$gateway_bytes" =~ ^[0-9]+$ ]]; then
+    gateway_bytes="268435456"
+  fi
+  if ! [[ "$server_bytes" =~ ^[0-9]+$ ]]; then
+    server_bytes="268435456"
+  fi
+
+  if [ "$gateway_bytes" -ge "$server_bytes" ]; then
+    max_bytes="$gateway_bytes"
+  else
+    max_bytes="$server_bytes"
+  fi
+
+  if [ "$max_bytes" -gt 0 ] && [ $((max_bytes % 1048576)) -eq 0 ]; then
+    printf '%sMB\n' "$((max_bytes / 1048576))"
+  else
+    printf '%s\n' "$max_bytes"
+  fi
+}
+
+configure_caddy_reverse_proxy() {
+  local caddyfile
+  local temp_file
+  local default_domain
+  local default_upstream
+  local domain_name
+  local upstream_target
+
+  caddyfile="$(caddyfile_path)"
+  temp_file="$(mktemp)"
+  default_domain="$(caddy_current_domain "$caddyfile" 2>/dev/null || true)"
+  default_upstream="$(caddy_current_upstream "$caddyfile" 2>/dev/null || true)"
+
+  if [ -z "$default_domain" ]; then
+    default_domain="example.com"
+  fi
+  if [ -z "$default_upstream" ]; then
+    default_upstream="host.docker.internal:3000"
+  fi
+
+  domain_name="$(prompt_with_default "输入需要反向代理的域名" "$default_domain")"
+  while [ -z "$domain_name" ]; do
+    warn "域名不能为空"
+    domain_name="$(prompt_with_default "输入需要反向代理的域名" "$default_domain")"
+  done
+
+  upstream_target="$(prompt_with_default "输入本地服务地址（host:port）" "$default_upstream")"
+  while [ -z "$upstream_target" ]; do
+    warn "本地服务地址不能为空"
+    upstream_target="$(prompt_with_default "输入本地服务地址（host:port）" "$default_upstream")"
+  done
+
+  cat >"$temp_file" <<EOF
+# setup-server-caddy-profile: generic
+$domain_name {
+    encode zstd gzip
+    reverse_proxy $upstream_target
+}
+EOF
+  run_privileged mv "$temp_file" "$caddyfile"
+  run_privileged chmod 644 "$caddyfile"
+  run_privileged chown root:root "$caddyfile"
+
+  log "Caddy 配置已写入：$caddyfile"
+  log "域名：$domain_name"
+  log "反代到：$upstream_target"
+}
+
+configure_caddy_sub2api_reverse_proxy() {
+  local caddyfile
+  local temp_file
+  local default_domain
+  local default_upstream
+  local domain_name
+  local upstream_target
+  local request_body_limit
+
+  caddyfile="$(caddyfile_path)"
+  temp_file="$(mktemp)"
+  default_domain="$(caddy_current_domain "$caddyfile" 2>/dev/null || true)"
+  default_upstream="$(caddy_current_upstream "$caddyfile" 2>/dev/null || true)"
+  request_body_limit="$(caddy_sub2api_request_body_limit)"
+
+  if [ -z "$default_domain" ]; then
+    default_domain="api.example.com"
+  fi
+  if [ -z "$default_upstream" ]; then
+    default_upstream="$(caddy_default_sub2api_upstream)"
+  fi
+
+  domain_name="$(prompt_with_default "输入 sub2api 对外域名" "$default_domain")"
+  while [ -z "$domain_name" ]; do
+    warn "域名不能为空"
+    domain_name="$(prompt_with_default "输入 sub2api 对外域名" "$default_domain")"
+  done
+
+  upstream_target="$(prompt_with_default "输入 sub2api 上游地址（host:port）" "$default_upstream")"
+  while [ -z "$upstream_target" ]; do
+    warn "上游地址不能为空"
+    upstream_target="$(prompt_with_default "输入 sub2api 上游地址（host:port）" "$default_upstream")"
+  done
+
+  cat >"$temp_file" <<EOF
+# setup-server-caddy-profile: sub2api
+$domain_name {
+    @static {
+        path /assets/*
+        path /logo.png
+        path /favicon.ico
+    }
+    header @static {
+        Cache-Control "public, max-age=31536000, immutable"
+        -Pragma
+        -Expires
+    }
+
+    tls {
+        protocols tls1.2 tls1.3
+        ciphers TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    }
+
+    reverse_proxy $upstream_target {
+        health_uri /health
+        health_interval 30s
+        health_timeout 10s
+        health_status 200
+
+        lb_policy round_robin
+        lb_try_duration 5s
+        lb_try_interval 250ms
+
+        header_up X-Real-IP {remote_host}
+        header_up CF-Connecting-IP {http.request.header.CF-Connecting-IP}
+
+        transport http {
+            keepalive 120s
+            keepalive_idle_conns 256
+            read_buffer 16KB
+            write_buffer 16KB
+            compression off
+        }
+
+        fail_duration 30s
+        max_fails 3
+        unhealthy_status 500 502 503 504
+    }
+
+    encode {
+        zstd
+        gzip 6
+        minimum_length 256
+        match {
+            header Content-Type text/*
+            header Content-Type application/json*
+            header Content-Type application/javascript*
+            header Content-Type application/xml*
+            header Content-Type application/rss+xml*
+            header Content-Type image/svg+xml*
+        }
+    }
+
+    request_body {
+        max_size $request_body_limit
+    }
+
+    log {
+        output file /data/logs/sub2api-access.log {
+            roll_size 50mb
+            roll_keep 10
+            roll_keep_for 720h
+        }
+        format json
+        level INFO
+    }
+
+    handle_errors {
+        respond "{err.status_code} {err.status_text}"
+    }
+}
+EOF
+  run_privileged mv "$temp_file" "$caddyfile"
+  run_privileged chmod 644 "$caddyfile"
+  run_privileged chown root:root "$caddyfile"
+
+  log "Sub2API 适配版 Caddy 配置已写入：$caddyfile"
+  log "域名：$domain_name"
+  log "反代到：$upstream_target"
+  log "请求体限制：$request_body_limit"
+}
+
+configure_caddy_profile() {
+  local current_profile="${1:-}"
+
+  if [ "$current_profile" = "sub2api" ]; then
+    if prompt_yes_no_default_yes "是否使用适配 sub2api 的 Caddy 配置模板？"; then
+      configure_caddy_sub2api_reverse_proxy
+    else
+      configure_caddy_reverse_proxy
+    fi
+    return $?
+  fi
+
+  if prompt_yes_no_default_no "是否使用适配 sub2api 的 Caddy 配置模板？"; then
+    configure_caddy_sub2api_reverse_proxy
+  else
+    configure_caddy_reverse_proxy
+  fi
+}
+
+install_caddy_stack() {
+  local compose_path
+  local current_domain
+
+  compose_path="$(compose_file_path "caddy")"
+  prepare_docker_compose "caddy" || return 1
+  prepare_caddy_stack_dirs
+  configure_caddy_profile "" || return 1
+
+  run_service_compose "caddy" up -d || return 1
+  current_domain="$(caddy_current_domain "$(caddyfile_path)" 2>/dev/null || true)"
+  log "Caddy 已部署。"
+  if [ -n "$current_domain" ]; then
+    log "请确保域名已解析到当前服务器：$current_domain"
+  fi
+  log "80/443 端口需要对外放行，且不应被其他服务占用。"
+}
+
+update_caddy_stack() {
+  local compose_path
+  local current_profile
+
+  compose_path="$(compose_file_path "caddy")"
+  prepare_docker_compose "caddy" || return 1
+  prepare_caddy_stack_dirs
+  current_profile="$(caddy_current_profile "$(caddyfile_path)" 2>/dev/null || true)"
+
+  if [ ! -f "$(caddyfile_path)" ]; then
+    configure_caddy_profile "$current_profile" || return 1
+  elif prompt_yes_no_default_no "是否同时更新 Caddy 反向代理配置？"; then
+    configure_caddy_profile "$current_profile" || return 1
+  fi
+
+  run_service_compose "caddy" pull || return 1
+  run_service_compose "caddy" up -d || return 1
+  log "Caddy 已更新。"
+}
+
+codex2api_stack_dir() {
+  docker_stack_dir "codex2api"
+}
+
+codex2api_compose_path() {
+  printf '%s/%s\n' "$(codex2api_stack_dir)" "docker-compose.yml"
+}
+
+codex2api_env_path() {
+  printf '%s/%s\n' "$(codex2api_stack_dir)" ".env"
+}
+
+codex2api_env_example_path() {
+  printf '%s/%s\n' "$(codex2api_stack_dir)" ".env.example"
+}
+
+codex2api_install_info_path() {
+  printf '%s/%s\n' "$(codex2api_stack_dir)" "INSTALL_INFO.txt"
+}
+
+codex2api_stack_exists() {
+  [ -f "$(codex2api_compose_path)" ] && [ -f "$(codex2api_env_path)" ]
 }
 
 codex2api_admin_secret_needs_generation() {
@@ -1972,7 +2649,7 @@ install_codex2api_stack() {
   fi
 
   codex2api_sync_remote_files "$repo_owner" "$repo_ref" || return 1
-  conflict_names="$(codex2api_conflicting_container_names "$compose_path" "$project_name" 2>/dev/null | sort -u)"
+  conflict_names="$(compose_conflicting_container_names "$compose_path" "$project_name" 2>/dev/null | sort -u)"
   if [ -n "$conflict_names" ]; then
     warn "检测到已存在的同名容器，已停止安装："
     printf '%s\n' "$conflict_names" >&2
@@ -2049,461 +2726,371 @@ remove_codex2api_stack() {
   log "codex2api 容器已停止并移除，数据目录仍保留：$stack_dir"
 }
 
-normalize_container_name() {
-  local compose_file="$1"
-  local container_name="$2"
-  local temp_file
-
-  temp_file="$(mktemp)"
-  if grep -q '^[[:space:]]*container_name:' "$compose_file"; then
-    run_privileged sed -i "s/^[[:space:]]*container_name:.*/    container_name: $container_name/" "$compose_file"
-    rm -f "$temp_file"
-    return 0
-  fi
-
-  awk -v name="$container_name" '
-    !inserted && /^[[:space:]]*image:/ {
-      print "    container_name: " name
-      inserted=1
-    }
-    { print }
-  ' "$compose_file" >"$temp_file" && run_privileged mv "$temp_file" "$compose_file"
-
-  run_privileged chmod 644 "$compose_file"
-  run_privileged chown root:root "$compose_file"
+sub2api_stack_dir() {
+  docker_stack_dir "sub2api"
 }
 
-prepare_docker_compose() {
-  local service_name="$1"
-  local stack_dir
-  local compose_path
-  local temp_compose
+sub2api_compose_path() {
+  printf '%s/%s\n' "$(sub2api_stack_dir)" "docker-compose.yml"
+}
 
-  stack_dir="$(docker_stack_dir "$service_name")"
-  compose_path="$(compose_file_path "$service_name")"
-  ensure_privileged_dir "$(docker_stack_root)" "root"
-  ensure_privileged_dir "$stack_dir" "root"
+sub2api_env_path() {
+  printf '%s/%s\n' "$(sub2api_stack_dir)" ".env"
+}
 
-  if [ "$service_name" = "qinglong" ]; then
-    temp_compose="$(mktemp)"
-    download_to "https://$github_raw/whyour/qinglong/master/docker/docker-compose.yml" "$temp_compose" || {
-      rm -f "$temp_compose"
+sub2api_env_example_path() {
+  printf '%s/%s\n' "$(sub2api_stack_dir)" ".env.example"
+}
+
+sub2api_install_info_path() {
+  printf '%s/%s\n' "$(sub2api_stack_dir)" "INSTALL_INFO.txt"
+}
+
+sub2api_stack_exists() {
+  [ -f "$(sub2api_compose_path)" ] && [ -f "$(sub2api_env_path)" ]
+}
+
+sub2api_has_existing_stack_files() {
+  [ -f "$(sub2api_compose_path)" ] \
+    || [ -f "$(sub2api_env_path)" ] \
+    || [ -f "$(sub2api_env_example_path)" ] \
+    || [ -f "$(sub2api_install_info_path)" ]
+}
+
+sub2api_existing_data_dirs() {
+  local stack_dir="$1"
+  local dir_path
+
+  for dir_path in \
+    "$stack_dir/data" \
+    "$stack_dir/postgres_data" \
+    "$stack_dir/redis_data"
+  do
+    if [ -f "$dir_path/PG_VERSION" ] || dir_has_entries "$dir_path"; then
+      printf '%s\n' "$dir_path"
+    fi
+  done
+}
+
+sub2api_postgres_password_needs_generation() {
+  case "$1" in
+    ""|"change_this_secure_password"|"changeme"|"your_password"|"your-strong-password")
+      return 0
+      ;;
+    *)
       return 1
-    }
-    run_privileged mv "$temp_compose" "$compose_path"
-    run_privileged chmod 644 "$compose_path"
-    run_privileged chown root:root "$compose_path"
-  else
-    install_asset_file_privileged "docker/$service_name.yml" "$compose_path" "root" 644 || return 1
-  fi
-
-  normalize_container_name "$compose_path" "$service_name" || return 1
-}
-
-service_stack_file_path() {
-  local service_name="$1"
-  local relative_path="$2"
-
-  printf '%s/%s\n' "$(docker_stack_dir "$service_name")" "$relative_path"
-}
-
-prepare_standard_service_stack_dirs() {
-  local service_name="$1"
-  local stack_dir
-  local temp_file
-
-  stack_dir="$(docker_stack_dir "$service_name")"
-  ensure_privileged_dir "$(docker_stack_root)" "root"
-  ensure_privileged_dir "$stack_dir" "root"
-
-  case "$service_name" in
-    code-server)
-      ensure_privileged_dir "$(service_stack_file_path "$service_name" "config")" "root"
-      ;;
-    nginx)
-      ensure_privileged_dir "$(service_stack_file_path "$service_name" "html")" "root"
-      if [ ! -f "$(service_stack_file_path "$service_name" "html/index.html")" ]; then
-        temp_file="$(mktemp)"
-        cat >"$temp_file" <<'EOF'
-<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <title>nginx</title>
-  </head>
-  <body>
-    <h1>nginx is running</h1>
-  </body>
-</html>
-EOF
-        run_privileged mv "$temp_file" "$(service_stack_file_path "$service_name" "html/index.html")"
-        run_privileged chmod 644 "$(service_stack_file_path "$service_name" "html/index.html")"
-      fi
-      ;;
-    pure-ftpd)
-      ensure_privileged_dir "$(service_stack_file_path "$service_name" "web_root")" "root"
-      ensure_privileged_dir "$(service_stack_file_path "$service_name" "ftp_passwd")" "root"
-      ;;
-    zfile)
-      ensure_privileged_dir "$(service_stack_file_path "$service_name" "zfile/db")" "root"
-      ensure_privileged_dir "$(service_stack_file_path "$service_name" "zfile/logs")" "root"
-      ensure_privileged_dir "$(service_stack_file_path "$service_name" "zfile/file")" "root"
-      if [ ! -f "$(service_stack_file_path "$service_name" "application.properties")" ]; then
-        run_privileged touch "$(service_stack_file_path "$service_name" "application.properties")"
-        run_privileged chmod 644 "$(service_stack_file_path "$service_name" "application.properties")"
-      fi
       ;;
   esac
 }
 
-show_docker_inventory() {
-  echo
-  log "已下载的 Docker 镜像:"
-  run_privileged docker images -a
-  echo
-  log "已安装的 Docker 容器:"
-  run_privileged docker ps -a
+sub2api_generate_random_email() {
+  local random_part
+  random_part="$(generate_random_secret 8 | tr 'A-Z' 'a-z')"
+  printf 'admin_%s@sub2api.local\n' "$random_part"
 }
 
-render_docker_menu() {
-  local i
+sub2api_sync_remote_files() {
+  local repo_owner="$1"
+  local repo_ref="$2"
+  local stack_dir
+  local compose_path
+  local env_path
+  local env_example_path
+  local temp_compose
+  local temp_env
+  local compose_url
+  local env_url
 
-  for i in "${!DOCKER_KEYS[@]}"; do
-    printf "%2s. %-20s%s\n" "$i" "${DOCKER_KEYS[$i]}" "${DOCKER_INFOS[$i]}"
-  done
-}
+  stack_dir="$(sub2api_stack_dir)"
+  compose_path="$(sub2api_compose_path)"
+  env_path="$(sub2api_env_path)"
+  env_example_path="$(sub2api_env_example_path)"
+  temp_compose="$(mktemp)"
+  temp_env="$(mktemp)"
+  compose_url="https://$github_raw/$repo_owner/sub2api/$repo_ref/deploy/docker-compose.local.yml"
+  env_url="https://$github_raw/$repo_owner/sub2api/$repo_ref/deploy/.env.example"
 
-write_env_kv() {
-  local env_path="$1"
-  local temp_file
-  shift
+  ensure_privileged_dir "$(docker_stack_root)" "root"
+  ensure_privileged_dir "$stack_dir" "root"
 
-  temp_file="$(mktemp)"
-  : >"$temp_file"
-  while [ "$#" -gt 0 ]; do
-    printf '%s\n' "$1" >>"$temp_file"
-    shift
-  done
+  download_to "$compose_url" "$temp_compose" || {
+    rm -f "$temp_compose" "$temp_env"
+    return 1
+  }
+  download_to "$env_url" "$temp_env" || {
+    rm -f "$temp_compose" "$temp_env"
+    return 1
+  }
 
-  ensure_privileged_dir "$(dirname "$env_path")" "root"
-  run_privileged mv "$temp_file" "$env_path"
+  run_privileged mv "$temp_compose" "$compose_path"
+  run_privileged mv "$temp_env" "$env_example_path"
+  run_privileged chmod 644 "$compose_path" "$env_example_path"
+  run_privileged chown root:root "$compose_path" "$env_example_path"
+
+  if [ ! -f "$env_path" ]; then
+    run_privileged cp "$env_example_path" "$env_path"
+  else
+    merge_env_defaults_from_template "$env_path" "$env_example_path"
+  fi
+
   run_privileged chmod 600 "$env_path"
   run_privileged chown root:root "$env_path"
 }
 
-docker_init() {
-  print_section "安装/更新 Docker"
+sub2api_collect_settings() {
+  local env_path="$1"
+  local repo_owner
+  local repo_ref
+  local sub2api_port
+  local admin_email
+  local admin_password
+
+  repo_owner="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_OWNER" "Wei-Shaw")"
+  repo_ref="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_REF" "main")"
+
+  if ! prompt_yes_no_default_yes "使用默认/当前 sub2api 部署参数"; then
+    repo_owner="$(prompt_with_default "设置 sub2api 仓库 owner" "$repo_owner")"
+    repo_ref="$(prompt_with_default "设置 sub2api 仓库分支或 tag" "$repo_ref")"
+  fi
 
   while true; do
-    read -r -p "是否配置国内源安装 docker? [Y/n] " input
-    case "$input" in
-      ""|[yY])
-        run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
-        break
-        ;;
-      [nN])
-        run_privileged mkdir -p /etc/apt/sources.list.d
-        run_remote_script "https://get.docker.com" || return 1
-        break
-        ;;
-      *)
-        log "错误选项：$input"
-        ;;
-    esac
+    read -r -p "设置 sub2api 访问端口（回车自动分配空闲端口）: " sub2api_port
+    if [ -z "$sub2api_port" ]; then
+      break
+    fi
+    if ! [[ "$sub2api_port" =~ ^[0-9]+$ ]] || [ "$sub2api_port" -lt 1 ] || [ "$sub2api_port" -gt 65535 ]; then
+      warn "端口无效：$sub2api_port，请重新输入"
+      continue
+    fi
+    if port_is_in_use "$sub2api_port"; then
+      warn "端口已被占用：$sub2api_port，请重新输入"
+      continue
+    fi
+    break
   done
 
-  log "安装/更新 docker 环境完成!"
+  read -r -p "设置管理员邮箱（回车随机生成）: " admin_email
+  read -r -s -p "设置管理员密码（回车随机生成）: " admin_password
+  echo
+
+  printf '%s\n' "$repo_owner|$repo_ref|$sub2api_port|$admin_email|$admin_password"
 }
 
-install_sub_web_assets() {
-  local backend_address="$1"
-  local repo_path
-  local env_file
+sub2api_configure_env() {
+  local env_path="$1"
+  local repo_owner="$2"
+  local repo_ref="$3"
+  local sub2api_port="$4"
+  local admin_email="${5:-}"
+  local admin_password="${6:-}"
+  local fresh_install="${7:-0}"
+  local postgres_password
+  local jwt_secret
+  local totp_key
 
-  repo_path="$(service_stack_file_path "sub-web" "sub-web")"
-  env_file="$repo_path/.env"
-  ensure_privileged_dir "$(docker_stack_dir "sub-web")" "root"
-  if [ -d "$repo_path/.git" ]; then
-    run_privileged git -C "$repo_path" pull --ff-only || return 1
-  else
-    run_privileged rm -rf "$repo_path"
-    run_privileged git clone "https://$github_repo/CareyWang/sub-web" "$repo_path" || return 1
+  env_upsert_value "$env_path" "SETUP_SERVER_REPO_OWNER" "$repo_owner"
+  env_upsert_value "$env_path" "SETUP_SERVER_REPO_REF" "$repo_ref"
+  env_upsert_value "$env_path" "SERVER_PORT" "$sub2api_port"
+  ensure_env_value "$env_path" "TZ" "Asia/Shanghai"
+
+  if [ -n "$admin_email" ]; then
+    env_upsert_value "$env_path" "ADMIN_EMAIL" "$admin_email"
+  elif [ "$fresh_install" = "1" ]; then
+    env_upsert_value "$env_path" "ADMIN_EMAIL" "$(sub2api_generate_random_email)"
   fi
 
-  if [ -f "$env_file" ]; then
-    if grep -q '^VUE_APP_SUBCONVERTER_DEFAULT_BACKEND' "$env_file"; then
-      run_privileged sed -i "s|^VUE_APP_SUBCONVERTER_DEFAULT_BACKEND.*|VUE_APP_SUBCONVERTER_DEFAULT_BACKEND = \"http://$backend_address\"|" "$env_file"
-    else
-      printf '%s\n' "VUE_APP_SUBCONVERTER_DEFAULT_BACKEND = \"http://$backend_address\"" | run_privileged tee -a "$env_file" >/dev/null
-    fi
-    run_privileged chown root:root "$env_file"
-  fi
-}
-
-sub_web_current_backend() {
-  local env_file
-  local backend_value
-
-  env_file="$(service_stack_file_path "sub-web" "sub-web/.env")"
-  [ -f "$env_file" ] || return 1
-
-  backend_value="$(awk '
-    /^[[:space:]]*VUE_APP_SUBCONVERTER_DEFAULT_BACKEND[[:space:]]*=/ {
-      sub(/^[^=]*=[[:space:]]*/, "", $0)
-      gsub(/^["'"'"']|["'"'"']$/, "", $0)
-      sub(/^https?:\/\//, "", $0)
-      print
-      exit
-    }
-  ' "$env_file")"
-
-  [ -n "$backend_value" ] || return 1
-  printf '%s\n' "$backend_value"
-}
-
-update_generic_docker_stack() {
-  local service_name="$1"
-  local current_backend
-
-  if ! docker_service_stack_exists "$service_name"; then
-    warn "未找到 ${service_name} 的部署目录：$(docker_stack_dir "$service_name")"
-    return 1
+  if [ -n "$admin_password" ]; then
+    env_upsert_value "$env_path" "ADMIN_PASSWORD" "$admin_password"
+  elif [ "$fresh_install" = "1" ]; then
+    env_upsert_value "$env_path" "ADMIN_PASSWORD" "$(generate_random_secret 16)"
   fi
 
-  case "$service_name" in
-    sub-web)
-      current_backend="$(sub_web_current_backend 2>/dev/null || true)"
-      install_sub_web_assets "${current_backend:-api.tsanfer.com:25500}" || return 1
-      run_service_compose "$service_name" up -d --build || return 1
-      ;;
-    *)
-      run_service_compose "$service_name" pull || return 1
-      run_service_compose "$service_name" up -d || return 1
-      ;;
-  esac
+  postgres_password="$(env_get_value "$env_path" "POSTGRES_PASSWORD" 2>/dev/null || true)"
+  if [ "$fresh_install" = "1" ] && sub2api_postgres_password_needs_generation "$postgres_password"; then
+    env_upsert_value "$env_path" "POSTGRES_PASSWORD" "$(generate_random_secret 24)"
+  elif [ -z "$postgres_password" ]; then
+    env_upsert_value "$env_path" "POSTGRES_PASSWORD" "$(generate_random_secret 24)"
+  fi
 
-  log "${service_name} 已更新，部署目录：$(docker_stack_dir "$service_name")"
+  jwt_secret="$(env_get_value "$env_path" "JWT_SECRET" 2>/dev/null || true)"
+  if [ -z "$jwt_secret" ]; then
+    env_upsert_value "$env_path" "JWT_SECRET" "$(generate_random_secret 64)"
+  fi
+
+  totp_key="$(env_get_value "$env_path" "TOTP_ENCRYPTION_KEY" 2>/dev/null || true)"
+  if [ -z "$totp_key" ]; then
+    env_upsert_value "$env_path" "TOTP_ENCRYPTION_KEY" "$(generate_random_secret 64)"
+  fi
+
+  run_privileged chmod 600 "$env_path"
+  run_privileged chown root:root "$env_path"
 }
 
-remove_generic_docker_stack() {
-  local service_name="$1"
+sub2api_prepare_stack_dirs() {
+  local stack_dir="$1"
 
-  if docker_service_stack_exists "$service_name"; then
-    run_service_compose "$service_name" down || return 1
-    log "${service_name} 已停止并移除，部署目录仍保留：$(docker_stack_dir "$service_name")"
+  ensure_privileged_dir "$stack_dir/data" "root"
+  ensure_privileged_dir "$stack_dir/postgres_data" "root"
+  ensure_privileged_dir "$stack_dir/redis_data" "root"
+}
+
+sub2api_write_install_info() {
+  local stack_dir="$1"
+  local env_path="$2"
+  local sub2api_port="$3"
+  local info_path
+  local admin_email
+  local admin_password
+  local postgres_password
+  local jwt_secret
+  local totp_key
+  local temp_file
+
+  info_path="$(sub2api_install_info_path)"
+  admin_email="$(env_get_value "$env_path" "ADMIN_EMAIL" 2>/dev/null || true)"
+  admin_password="$(env_get_value "$env_path" "ADMIN_PASSWORD" 2>/dev/null || true)"
+  postgres_password="$(env_get_value "$env_path" "POSTGRES_PASSWORD" 2>/dev/null || true)"
+  jwt_secret="$(env_get_value "$env_path" "JWT_SECRET" 2>/dev/null || true)"
+  totp_key="$(env_get_value "$env_path" "TOTP_ENCRYPTION_KEY" 2>/dev/null || true)"
+  temp_file="$(mktemp)"
+
+  cat >"$temp_file" <<EOF
+sub2api 部署信息
+
+部署目录: $stack_dir
+访问地址: http://localhost:$sub2api_port
+
+ADMIN_EMAIL=$admin_email
+ADMIN_PASSWORD=$admin_password
+POSTGRES_PASSWORD=$postgres_password
+JWT_SECRET=$jwt_secret
+TOTP_ENCRYPTION_KEY=$totp_key
+EOF
+
+  run_privileged mv "$temp_file" "$info_path"
+  run_privileged chmod 600 "$info_path"
+  run_privileged chown root:root "$info_path"
+}
+
+install_sub2api_stack() {
+  local stack_dir
+  local compose_path
+  local env_path
+  local settings
+  local repo_owner
+  local repo_ref
+  local sub2api_port
+  local admin_email
+  local admin_password
+  local conflict_names
+  local existing_data_dirs
+
+  stack_dir="$(sub2api_stack_dir)"
+  compose_path="$(sub2api_compose_path)"
+  env_path="$(sub2api_env_path)"
+  ensure_privileged_dir "$(docker_stack_root)" "root"
+  ensure_privileged_dir "$stack_dir" "root"
+
+  if sub2api_stack_exists; then
+    warn "sub2api 已存在：$stack_dir"
+    log "请使用“更新 docker 镜像和容器”来刷新现有服务。"
+    log "当前访问地址：http://localhost:$(env_value_or_default "$env_path" "SERVER_PORT" "8080")"
     return 0
   fi
 
-  run_privileged docker rm -f "$service_name" 2>/dev/null || run_privileged docker stop "$service_name"
+  if sub2api_has_existing_stack_files; then
+    warn "检测到已有 sub2api 部署文件：$stack_dir"
+    log "为避免覆盖现有 compose/.env 文件，安装已停止。"
+    log "如为现有部署，请改用“更新 docker 镜像和容器”；如需重装，请先清理 $stack_dir 下的部署文件。"
+    return 1
+  fi
+
+  existing_data_dirs="$(sub2api_existing_data_dirs "$stack_dir" | sort -u)"
+  if [ -n "$existing_data_dirs" ]; then
+    warn "检测到已存在的数据目录，可能之前已经部署过 sub2api："
+    printf '%s\n' "$existing_data_dirs" >&2
+    warn "继续安装可能导致新 .env 与旧数据不一致。"
+    log "如需保留旧数据，请恢复原 .env 后执行“更新 docker 镜像和容器”。"
+    log "如无需保留旧数据，请先清理上述目录后再重装。"
+    return 1
+  fi
+
+  settings="$(sub2api_collect_settings "$env_path")" || return 1
+  IFS='|' read -r repo_owner repo_ref sub2api_port admin_email admin_password <<<"$settings"
+  if [ -z "$sub2api_port" ]; then
+    sub2api_port="$(random_available_port)" || return 1
+  fi
+
+  sub2api_sync_remote_files "$repo_owner" "$repo_ref" || return 1
+  conflict_names="$(compose_conflicting_container_names "$compose_path" "sub2api" 2>/dev/null | sort -u)"
+  if [ -n "$conflict_names" ]; then
+    warn "检测到已存在的同名容器，已停止安装："
+    printf '%s\n' "$conflict_names" >&2
+    warn "请先清理这些容器后再安装。"
+    return 1
+  fi
+  sub2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$sub2api_port" "$admin_email" "$admin_password" "1"
+  sub2api_prepare_stack_dirs "$stack_dir"
+
+  run_service_compose "sub2api" pull || return 1
+  run_service_compose "sub2api" up -d || return 1
+  sub2api_write_install_info "$stack_dir" "$env_path" "$sub2api_port"
+  log "sub2api 已部署，配置目录：$stack_dir"
+  log "访问地址：http://localhost:$sub2api_port"
+  log "管理员邮箱：$(env_get_value "$env_path" "ADMIN_EMAIL" 2>/dev/null || true)"
+  log "管理员密码：$(env_get_value "$env_path" "ADMIN_PASSWORD" 2>/dev/null || true)"
+  log "数据库密码、JWT_SECRET、TOTP_ENCRYPTION_KEY 等已写入：$env_path"
+  log "安装信息文件：$(sub2api_install_info_path)"
 }
 
-install_selected_docker() {
-  local selection="$1"
-  local service_name
-  local compose_path
+update_sub2api_stack() {
+  local stack_dir
   local env_path
-  local password
-  local sudo_password
-  local ftp_username
-  local ftp_password
-  local sub_web_backend
-  local webdav_url
-  local webdav_user
-  local webdav_pass
-  local webdav_local_path
-  local update_interval
+  local repo_owner
+  local repo_ref
+  local sub2api_port
 
-  service_name="$(docker_service_name_by_selection "$selection" 2>/dev/null || true)"
-  if [ -z "$service_name" ]; then
-    log "错误选项：$selection"
+  stack_dir="$(sub2api_stack_dir)"
+  env_path="$(sub2api_env_path)"
+
+  if [ ! -f "$env_path" ]; then
+    warn "未找到 sub2api 的部署目录：$stack_dir"
     return 1
   fi
 
-  if [ "$service_name" = "codex2api" ]; then
-    install_codex2api_stack
-    return $?
+  repo_owner="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_OWNER" "Wei-Shaw")"
+  repo_ref="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_REF" "main")"
+  sub2api_port="$(env_value_or_default "$env_path" "SERVER_PORT" "")"
+
+  if [ -z "$sub2api_port" ] || ! [[ "$sub2api_port" =~ ^[0-9]+$ ]] || [ "$sub2api_port" -lt 1 ] || [ "$sub2api_port" -gt 65535 ]; then
+    sub2api_port="$(random_available_port)" || return 1
   fi
 
-  if [ "$service_name" = "caddy" ]; then
-    install_caddy_stack
-    return $?
-  fi
+  sub2api_sync_remote_files "$repo_owner" "$repo_ref" || return 1
+  sub2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$sub2api_port" "" "" "0"
+  sub2api_prepare_stack_dirs "$stack_dir"
 
-  compose_path="$(compose_file_path "$service_name")"
-  env_path="$(compose_env_path "$service_name")"
-  prepare_docker_compose "$service_name" || return 1
-  prepare_standard_service_stack_dirs "$service_name"
-
-  case "$selection" in
-    0)
-      read -r -s -p "设置密码: " password
-      echo
-      read -r -s -p "设置 sudo 密码: " sudo_password
-      echo
-      write_env_kv "$env_path" "PASSWORD=$password" "SUDO_PASSWORD=$sudo_password"
-      run_service_compose "$service_name" up -d
-      ;;
-    1|3|4|5|7|8|11)
-      run_service_compose "$service_name" up -d
-      ;;
-    2)
-      read -r -p "设置 ftp 用户名: " ftp_username
-      read -r -s -p "设置 ftp 密码: " ftp_password
-      echo
-      write_env_kv "$env_path" "FTP_USER_NAME=$ftp_username" "FTP_USER_PASS=$ftp_password"
-      run_service_compose "$service_name" up -d
-      ;;
-    6)
-      sub_web_backend="$(prompt_with_default "设置订阅转换后端地址" "api.tsanfer.com:25500")"
-      install_sub_web_assets "$sub_web_backend" || return 1
-      run_service_compose "$service_name" up -d
-      ;;
-    9)
-      webdav_url="$(prompt_with_default "输入 webdav 服务器地址(url)" "https://dav.jianguoyun.com/dav/我的坚果云")"
-      webdav_user="$(prompt_with_default "输入 webdav 用户名" "a1124851454@gmail.com")"
-      read -r -s -p "输入 webdav 密码: " webdav_pass
-      echo
-      webdav_local_path="$(prompt_with_default "输入 webdav 本地目录" "/mnt/webdav")"
-      write_env_kv "$env_path" \
-        "WEBDRIVE_URL=$webdav_url" \
-        "WEBDRIVE_USERNAME=$webdav_user" \
-        "WEBDRIVE_PASSWORD=$webdav_pass" \
-        "WEBDRIVE_LOCAL_PATH=$webdav_local_path"
-      run_service_compose "$service_name" up -d
-      ;;
-    10)
-      update_interval="$(prompt_with_default "设置 Docker 镜像检查更新频率，单位：秒" "30")"
-      write_env_kv "$env_path" "INTERVAL=$update_interval"
-      run_service_compose "$service_name" up -d
-      ;;
-  esac
+  run_service_compose "sub2api" pull || return 1
+  run_service_compose "sub2api" up -d || return 1
+  sub2api_write_install_info "$stack_dir" "$env_path" "$sub2api_port"
+  log "sub2api 已更新，配置目录：$stack_dir"
+  log "访问地址：http://localhost:$sub2api_port"
+  log "安装信息文件：$(sub2api_install_info_path)"
 }
 
-docker_install() {
-  print_section "从 Docker compose 部署 docker 容器"
-  log "检查 Docker 状态..."
+remove_sub2api_stack() {
+  local stack_dir
 
-  if ! command_exists docker; then
-    warn "Docker 未安装!"
+  stack_dir="$(sub2api_stack_dir)"
+
+  if [ ! -f "$(sub2api_compose_path)" ]; then
+    warn "未找到 sub2api 的部署目录：$stack_dir"
     return 1
   fi
 
-  while true; do
-    echo
-    log "已安装的 Docker 容器:"
-    run_privileged docker ps -a
-    render_docker_menu
-    read -r -p "选择需要安装的 Docker 容器序号 (q:退出): " input
-
-    case "$input" in
-      [qQ])
-        break
-        ;;
-      *)
-        install_selected_docker "$input"
-        ;;
-    esac
-  done
-
-  show_docker_inventory
+  run_service_compose "sub2api" down || return 1
+  log "sub2api 容器已停止并移除，数据目录仍保留：$stack_dir"
 }
-
-docker_update() {
-  print_section "更新 docker 镜像和容器"
-  log "检查 Docker 状态..."
-
-  if ! command_exists docker; then
-    warn "Docker 未安装!"
-    return 1
-  fi
-
-  echo
-  log "已安装的 Docker 容器:"
-  run_privileged docker ps -a
-
-  while true; do
-    local service_name
-
-    render_docker_menu
-    read -r -p "选择需要更新的 Docker 容器序号 (q:退出): " input
-
-    service_name="$(docker_service_name_by_selection "$input" 2>/dev/null || true)"
-    case "$input" in
-      [qQ])
-        break
-        ;;
-    esac
-
-    case "$service_name" in
-      caddy)
-        update_caddy_stack
-        ;;
-      codex2api)
-        update_codex2api_stack
-        ;;
-      "")
-        log "错误选项：$input"
-        ;;
-      *)
-        update_generic_docker_stack "$service_name"
-        ;;
-    esac
-  done
-
-  show_docker_inventory
-}
-
-docker_remove() {
-  local service_name
-
-  print_section "删除 docker 镜像和容器"
-  log "检查 Docker 状态..."
-
-  if ! command_exists docker; then
-    warn "Docker 未安装!"
-    return 1
-  fi
-
-  echo
-  log "已安装的 Docker 容器:"
-  run_privileged docker ps -a
-
-  while true; do
-    local service_name
-
-    render_docker_menu
-    read -r -p "选择需要删除的 Docker 容器序号 (q:退出): " input
-
-    service_name="$(docker_service_name_by_selection "$input" 2>/dev/null || true)"
-    case "$input" in
-      [qQ])
-        break
-        ;;
-    esac
-
-    case "$service_name" in
-      codex2api)
-        remove_codex2api_stack
-        ;;
-      "")
-        log "错误选项：$input"
-        ;;
-      *)
-        remove_generic_docker_stack "$service_name"
-        ;;
-    esac
-  done
-
-  if prompt_yes_no_default_no "是否同时清理未使用的 Docker 镜像和缓存"; then
-    run_privileged docker system prune -a -f
-  fi
-  show_docker_inventory
-}
-
-register_module "docker_init" "docker_init" "安装，更新 Docker" "docker_init"
-register_module "docker_install" "docker_install" "从 Docker compose 部署 docker 容器" "docker_install"
-register_module "docker_update" "docker_update" "更新 docker 镜像和容器" "docker_update"
-register_module "docker_remove" "docker_remove" "删除 docker 镜像和容器" "docker_remove"
 
 change_timezone() {
   local timezones=("Asia/Shanghai" "America/New_York" "Europe/London" "Australia/Sydney")
