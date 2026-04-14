@@ -118,6 +118,10 @@ sub2api_postgres_password_needs_generation() {
   esac
 }
 
+sub2api_hex_secret_is_valid() {
+  [[ "$1" =~ ^[A-Fa-f0-9]{64}$ ]]
+}
+
 sub2api_generate_random_email() {
   local random_part
   random_part="$(generate_random_secret 8 | tr 'A-Z' 'a-z')"
@@ -247,12 +251,18 @@ sub2api_configure_env() {
 
   jwt_secret="$(env_get_value "$env_path" "JWT_SECRET" 2>/dev/null || true)"
   if [ -z "$jwt_secret" ]; then
-    env_upsert_value "$env_path" "JWT_SECRET" "$(generate_random_secret 64)"
+    env_upsert_value "$env_path" "JWT_SECRET" "$(generate_random_hex 32)"
+  elif ! sub2api_hex_secret_is_valid "$jwt_secret"; then
+    log "检测到现有 JWT_SECRET 不是 64 位十六进制，已重新生成。"
+    env_upsert_value "$env_path" "JWT_SECRET" "$(generate_random_hex 32)"
   fi
 
   totp_key="$(env_get_value "$env_path" "TOTP_ENCRYPTION_KEY" 2>/dev/null || true)"
   if [ -z "$totp_key" ]; then
-    env_upsert_value "$env_path" "TOTP_ENCRYPTION_KEY" "$(generate_random_secret 64)"
+    env_upsert_value "$env_path" "TOTP_ENCRYPTION_KEY" "$(generate_random_hex 32)"
+  elif ! sub2api_hex_secret_is_valid "$totp_key"; then
+    log "检测到现有 TOTP_ENCRYPTION_KEY 不是 64 位十六进制，已重新生成。"
+    env_upsert_value "$env_path" "TOTP_ENCRYPTION_KEY" "$(generate_random_hex 32)"
   fi
 
   run_privileged chmod 600 "$env_path"

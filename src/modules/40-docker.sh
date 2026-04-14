@@ -123,6 +123,23 @@ generate_random_secret() {
   printf '%s\n' "${secret:0:length}"
 }
 
+generate_random_hex() {
+  local bytes="${1:-32}"
+  local target_length
+  local hex=""
+
+  target_length=$((bytes * 2))
+  while [ "${#hex}" -lt "$target_length" ]; do
+    if command_exists openssl; then
+      hex="${hex}$(openssl rand -hex "$bytes" 2>/dev/null || true)"
+    else
+      hex="${hex}$(od -An -tx1 -v -N "$bytes" /dev/urandom 2>/dev/null | tr -d ' \n' || true)"
+    fi
+  done
+
+  printf '%s\n' "${hex:0:target_length}"
+}
+
 port_is_in_use() {
   local port="$1"
   local port_hex
