@@ -77,7 +77,7 @@
   |[jsxm](https://github.com/a1k0n/jsxm)|Web 在线 xm 音乐播放器|`8081`|
   |[Caddy](https://caddyserver.com/)|反向代理服务，可将某个域名转发到宿主机本地服务|`80` `443`|
   |[codex2api](https://github.com/yyssp/codex2api)|Codex2API，一键拉取 compose 和 `.env.example`，自动生成密钥并在首次安装时分配空闲随机端口|随机|
-  |[sub2api](https://github.com/Wei-Shaw/sub2api)|Sub2API，一键拉取 `deploy/docker-compose.local.yml` 和 `.env.example`，自动生成部署密钥并分配空闲随机端口|随机|
+  |[sub2api](https://github.com/Wei-Shaw/sub2api)|Sub2API，使用项目内置的 compose / `.env.example` / `Caddyfile` 参考模板，自动生成部署密钥并分配空闲随机端口|随机|
 
   所有通过 `docker compose` 安装的服务都会统一部署到 `/root/docker-compose/<service>/`，例如 `caddy` 会使用 `/root/docker-compose/caddy/docker-compose.yml`，`nginx` 会使用 `/root/docker-compose/nginx/docker-compose.yml`。
 
@@ -87,31 +87,44 @@
 
   `codex2api` 的部署目录默认在 `/root/docker-compose/codex2api/`，脚本会自动下载远程 `docker-compose.yml`、`.env.example`，首次部署时生成 `.env`，并补齐 `ADMIN_SECRET`、`DATABASE_PASSWORD`。首次安装会分配一个当前未占用的随机端口；如果本地已存在部署，则安装流程会直接提示改用更新；更新时默认沿用当前端口，仅在端口缺失或冲突时重新分配。
 
-  `sub2api` 的部署目录默认在 `/root/docker-compose/sub2api/`，脚本会自动下载远程 `deploy/docker-compose.local.yml` 作为 `docker-compose.yml`，并同步 `.env.example`。首次部署会创建 `.env`、`data/`、`postgres_data/`、`redis_data/`，同时补齐 `POSTGRES_PASSWORD`、`JWT_SECRET`、`TOTP_ENCRYPTION_KEY`、管理员邮箱/密码。首次安装会分配一个当前未占用的随机端口；如果检测到已有部署文件或历史数据目录，安装会直接停止，避免覆盖现有部署，并提示改用更新或先清理后重装。
+  `sub2api` 的部署目录默认在 `/root/docker-compose/sub2api/`。项目已将 `docker-compose.yml`、`docker-compose.local.yml`、`.env.example` 和 `Caddyfile` 参考模板内置到 `src/assets/sub2api/`，安装和更新时不再从上游仓库下载这些文件。首次部署会创建 `.env`，同时补齐 `POSTGRES_PASSWORD`、`JWT_SECRET`、`TOTP_ENCRYPTION_KEY`、管理员邮箱/密码，并同步一份 `Caddyfile.sub2api.example` 供反向代理参考。首次安装会分配一个当前未占用的随机端口；如果检测到已有部署文件，安装会直接停止，避免覆盖现有部署，并提示改用更新或先清理后重装。对于旧的本地目录版 `sub2api` 部署，脚本更新时会继续沿用原 compose 模式，避免在升级时自动切换到命名卷导致数据失联。
   
 - 清理 APT 空间
 
 ## 一键脚本
 
+国内加速：
+
 ```sh
-(
-  echo -n "是否从国内拉取脚本？[Y/n] "; read r; 
-  if [ "$r" = "n" ] || [ "$r" = "N" ]; then
-    url="https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh"
-  else
-    url="https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh"
-  fi;
-  if ! command -v sudo >/dev/null 2>&1; then
-    echo "请先安装 sudo" >&2; exit 1
-  fi;
-  if command -v curl >/dev/null 2>&1; then
-    sudo bash -c "$(curl -fsSL "$url")"
-  elif command -v wget >/dev/null 2>&1; then
-    sudo bash -c "$(wget "$url" -O -)"
-  else
-    echo "请先安装 curl 或 wget" >&2; exit 1
-  fi
-)
+if ! command -v sudo >/dev/null 2>&1; then
+  echo "请先安装 sudo" >&2
+  exit 1
+fi
+if command -v curl >/dev/null 2>&1; then
+  sudo bash -c "$(curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+elif command -v wget >/dev/null 2>&1; then
+  sudo bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+else
+  echo "请先安装 curl 或 wget" >&2
+  exit 1
+fi
+```
+
+国外直连：
+
+```sh
+if ! command -v sudo >/dev/null 2>&1; then
+  echo "请先安装 sudo" >&2
+  exit 1
+fi
+if command -v curl >/dev/null 2>&1; then
+  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+elif command -v wget >/dev/null 2>&1; then
+  sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+else
+  echo "请先安装 curl 或 wget" >&2
+  exit 1
+fi
 ```
 
 ## 下载源偏好配置

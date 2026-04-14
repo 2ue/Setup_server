@@ -3,7 +3,7 @@
 
 set -o pipefail
 
-SETUP_SERVER_BUILD_AT=2026-04-14T00:50:04Z
+SETUP_SERVER_BUILD_AT=2026-04-14T18:46:48Z
 
 # Core runtime helpers shared by all modules.
 
@@ -993,6 +993,1021 @@ services:
     image: zhaojun1998/zfile
 
 __SETUP_ASSET_docker_zfile_yml__
+      ;;
+    "sub2api/.env.example")
+      cat >"$output_path" <<'__SETUP_ASSET_sub2api__env_example__'
+# =============================================================================
+# Sub2API Docker Environment Configuration
+# =============================================================================
+# Copy this file to .env and modify as needed:
+#   cp .env.example .env
+#   nano .env
+#
+# Then start with: docker-compose up -d
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Server Configuration
+# -----------------------------------------------------------------------------
+# Bind address for host port mapping
+BIND_HOST=0.0.0.0
+
+# Server port (exposed on host)
+SERVER_PORT=8080
+
+# Server mode: release or debug
+SERVER_MODE=release
+
+# -----------------------------------------------------------------------------
+# Logging Configuration
+# 日志配置
+# -----------------------------------------------------------------------------
+# 日志级别：debug/info/warn/error
+LOG_LEVEL=info
+# 日志格式：json/console
+LOG_FORMAT=json
+# 每条日志附带的 service 字段
+LOG_SERVICE_NAME=sub2api
+# 每条日志附带的 env 字段
+LOG_ENV=production
+# 是否输出调用方位置信息
+LOG_CALLER=true
+# 堆栈输出阈值：none/error/fatal
+LOG_STACKTRACE_LEVEL=error
+
+# 输出开关（建议容器内保持双输出）
+# 是否输出到 stdout/stderr
+LOG_OUTPUT_TO_STDOUT=true
+# 是否输出到文件
+LOG_OUTPUT_TO_FILE=true
+# 日志文件路径（留空自动推导）：
+# - 设置 DATA_DIR：${DATA_DIR}/logs/sub2api.log
+# - 未设置 DATA_DIR：/app/data/logs/sub2api.log
+LOG_OUTPUT_FILE_PATH=
+
+# 滚动配置
+# 单文件最大体积（MB）
+LOG_ROTATION_MAX_SIZE_MB=100
+# 保留历史文件数量（0 表示不限制）
+LOG_ROTATION_MAX_BACKUPS=10
+# 历史日志保留天数（0 表示不限制）
+LOG_ROTATION_MAX_AGE_DAYS=7
+# 是否压缩历史日志
+LOG_ROTATION_COMPRESS=true
+# 滚动文件时间戳是否使用本地时间
+LOG_ROTATION_LOCAL_TIME=true
+
+# 采样配置（高频重复日志降噪）
+LOG_SAMPLING_ENABLED=false
+# 每秒前 N 条日志不采样
+LOG_SAMPLING_INITIAL=100
+# 之后每 N 条保留 1 条
+LOG_SAMPLING_THEREAFTER=100
+
+# Global max request body size in bytes (default: 256MB)
+# 全局最大请求体大小（字节，默认 256MB）
+# Applies to all requests, especially important for h2c first request memory protection
+# 适用于所有请求，对 h2c 第一请求的内存保护尤为重要
+SERVER_MAX_REQUEST_BODY_SIZE=268435456
+
+# Gateway max request body size in bytes (default: 256MB)
+# 网关请求体最大字节数（默认 256MB）
+GATEWAY_MAX_BODY_SIZE=268435456
+
+# Enable HTTP/2 Cleartext (h2c) for client connections
+# 启用 HTTP/2 Cleartext (h2c) 客户端连接
+SERVER_H2C_ENABLED=true
+# H2C max concurrent streams (default: 50)
+# H2C 最大并发流数量（默认 50）
+SERVER_H2C_MAX_CONCURRENT_STREAMS=50
+# H2C idle timeout in seconds (default: 75)
+# H2C 空闲超时时间（秒，默认 75）
+SERVER_H2C_IDLE_TIMEOUT=75
+# H2C max read frame size in bytes (default: 1048576 = 1MB)
+# H2C 最大帧大小（字节，默认 1048576 = 1MB）
+SERVER_H2C_MAX_READ_FRAME_SIZE=1048576
+# H2C max upload buffer per connection in bytes (default: 2097152 = 2MB)
+# H2C 每个连接的最大上传缓冲区（字节，默认 2097152 = 2MB）
+SERVER_H2C_MAX_UPLOAD_BUFFER_PER_CONNECTION=2097152
+# H2C max upload buffer per stream in bytes (default: 524288 = 512KB)
+# H2C 每个流的最大上传缓冲区（字节，默认 524288 = 512KB）
+SERVER_H2C_MAX_UPLOAD_BUFFER_PER_STREAM=524288
+
+# 运行模式: standard (默认) 或 simple (内部自用)
+# standard: 完整 SaaS 功能，包含计费/余额校验；simple: 隐藏 SaaS 功能并跳过计费/余额校验
+RUN_MODE=standard
+
+# Timezone
+TZ=Asia/Shanghai
+
+# -----------------------------------------------------------------------------
+# PostgreSQL Configuration (REQUIRED)
+# -----------------------------------------------------------------------------
+POSTGRES_USER=sub2api
+POSTGRES_PASSWORD=change_this_secure_password
+POSTGRES_DB=sub2api
+# PostgreSQL 监听端口（同时用于 PG 服务端和应用连接，默认 5432）
+DATABASE_PORT=5432
+
+# -----------------------------------------------------------------------------
+# PostgreSQL 服务端参数（可选）
+# -----------------------------------------------------------------------------
+# POSTGRES_MAX_CONNECTIONS：PostgreSQL 服务端允许的最大连接数。
+# 必须 >=（所有 Sub2API 实例的 DATABASE_MAX_OPEN_CONNS 之和）+ 预留余量（例如 20%）。
+POSTGRES_MAX_CONNECTIONS=1024
+# POSTGRES_SHARED_BUFFERS：PostgreSQL 用于缓存数据页的共享内存。
+# 常见建议：物理内存的 10%~25%（容器内存受限时请按实际限制调整）。
+# 8GB 内存容器参考：1GB。
+POSTGRES_SHARED_BUFFERS=1GB
+# POSTGRES_EFFECTIVE_CACHE_SIZE：查询规划器“假设可用的 OS 缓存大小”（不等于实际分配）。
+# 常见建议：物理内存的 50%~75%。
+# 8GB 内存容器参考：6GB。
+POSTGRES_EFFECTIVE_CACHE_SIZE=4GB
+# POSTGRES_MAINTENANCE_WORK_MEM：维护操作内存（VACUUM/CREATE INDEX 等）。
+# 值越大维护越快，但会占用更多内存。
+# 8GB 内存容器参考：128MB。
+POSTGRES_MAINTENANCE_WORK_MEM=128MB
+
+# -----------------------------------------------------------------------------
+# PostgreSQL 连接池参数（可选，默认与程序内置一致）
+# -----------------------------------------------------------------------------
+# 说明：
+# - 这些参数控制 Sub2API 进程到 PostgreSQL 的连接池大小（不是 PostgreSQL 自身的 max_connections）。
+# - 多实例/多副本部署时，总连接上限约等于：实例数 * DATABASE_MAX_OPEN_CONNS。
+# - 连接池过大可能导致：数据库连接耗尽、内存占用上升、上下文切换增多，反而变慢。
+# - 建议结合 PostgreSQL 的 max_connections 与机器规格逐步调优：
+#   通常把应用总连接上限控制在 max_connections 的 50%~80% 更稳妥。
+#
+# DATABASE_MAX_OPEN_CONNS：最大打开连接数（活跃+空闲），达到后新请求会等待可用连接。
+# 典型范围：50~500（取决于 DB 规格、实例数、SQL 复杂度）。
+DATABASE_MAX_OPEN_CONNS=256
+# DATABASE_MAX_IDLE_CONNS：最大空闲连接数（热连接），建议 <= MAX_OPEN。
+# 太小会频繁建连增加延迟；太大会长期占用数据库资源。
+DATABASE_MAX_IDLE_CONNS=128
+# DATABASE_CONN_MAX_LIFETIME_MINUTES：单个连接最大存活时间（单位：分钟）。
+# 用于避免连接长期不重建导致的中间件/LB/NAT 异常或服务端重启后的“僵尸连接”。
+# 设置为 0 表示不限制（一般不建议生产环境）。
+DATABASE_CONN_MAX_LIFETIME_MINUTES=30
+# DATABASE_CONN_MAX_IDLE_TIME_MINUTES：空闲连接最大存活时间（单位：分钟）。
+# 超过该时间的空闲连接会被回收，防止长时间闲置占用连接数。
+# 设置为 0 表示不限制（一般不建议生产环境）。
+DATABASE_CONN_MAX_IDLE_TIME_MINUTES=5
+
+# -----------------------------------------------------------------------------
+# Redis Configuration
+# -----------------------------------------------------------------------------
+# Redis 监听端口（同时用于应用连接和 Redis 服务端，默认 6379）
+REDIS_PORT=6379
+# Leave empty for no password (default for local development)
+REDIS_PASSWORD=
+REDIS_DB=0
+# Redis 服务端最大客户端连接数（可选）
+REDIS_MAXCLIENTS=50000
+# Redis 连接池大小（默认 1024）
+REDIS_POOL_SIZE=4096
+# Redis 最小空闲连接数（默认 10）
+REDIS_MIN_IDLE_CONNS=256
+REDIS_ENABLE_TLS=false
+
+# -----------------------------------------------------------------------------
+# Admin Account
+# -----------------------------------------------------------------------------
+# Email for the admin account
+ADMIN_EMAIL=admin@sub2api.local
+
+# Password for admin account
+# Leave empty to auto-generate (will be shown in logs on first run)
+ADMIN_PASSWORD=
+
+# -----------------------------------------------------------------------------
+# JWT Configuration
+# -----------------------------------------------------------------------------
+# IMPORTANT: Set a fixed JWT_SECRET to prevent login sessions from being
+# invalidated after container restarts. If left empty, a random secret will
+# be generated on each startup, causing all users to be logged out.
+# Generate a secure secret: openssl rand -hex 32
+JWT_SECRET=
+JWT_EXPIRE_HOUR=24
+# Access Token 有效期（分钟）
+# 优先级说明：
+# - >0: 按分钟生效（优先于 JWT_EXPIRE_HOUR）
+# - =0: 回退使用 JWT_EXPIRE_HOUR
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=0
+
+# -----------------------------------------------------------------------------
+# TOTP (2FA) Configuration
+# TOTP（双因素认证）配置
+# -----------------------------------------------------------------------------
+# IMPORTANT: Set a fixed encryption key for TOTP secrets. If left empty, a
+# random key will be generated on each startup, causing all existing TOTP
+# configurations to become invalid (users won't be able to login with 2FA).
+# Generate a secure key: openssl rand -hex 32
+# 重要：设置固定的 TOTP 加密密钥。如果留空，每次启动将生成随机密钥，
+# 导致现有的 TOTP 配置失效（用户无法使用双因素认证登录）。
+TOTP_ENCRYPTION_KEY=
+
+# -----------------------------------------------------------------------------
+# Configuration File (Optional)
+# -----------------------------------------------------------------------------
+# Path to custom config file (relative to docker-compose.yml directory)
+# Copy config.example.yaml to config.yaml and modify as needed
+# Leave unset to use default ./config.yaml
+#CONFIG_FILE=./config.yaml
+
+# -----------------------------------------------------------------------------
+# Built-in OAuth Client Secrets (Optional)
+# -----------------------------------------------------------------------------
+# SECURITY NOTE:
+# - 本项目不会在代码仓库中内置第三方 OAuth client_secret。
+# - 如需使用“内置客户端”（而不是自建 OAuth Client），请在运行环境通过 env 注入。
+#
+# Gemini CLI built-in OAuth client_secret（用于 Gemini code_assist/google_one 内置登录流）
+# GEMINI_CLI_OAUTH_CLIENT_SECRET=
+#
+# Antigravity OAuth client_secret（用于 Antigravity OAuth 登录流）
+# ANTIGRAVITY_OAUTH_CLIENT_SECRET=
+
+# -----------------------------------------------------------------------------
+# Rate Limiting (Optional)
+# 速率限制（可选）
+# -----------------------------------------------------------------------------
+# Cooldown time (in minutes) when upstream returns 529 (overloaded)
+# 上游返回 529（过载）时的冷却时间（分钟）
+RATE_LIMIT_OVERLOAD_COOLDOWN_MINUTES=10
+
+# -----------------------------------------------------------------------------
+# Gateway Scheduling (Optional)
+# 调度缓存与受控回源配置（缓存就绪且命中时不读 DB）
+# -----------------------------------------------------------------------------
+# Force Codex CLI mode: treat all /openai/v1/responses requests as Codex CLI.
+# 强制按 Codex CLI 处理 /openai/v1/responses 请求（用于网关未透传/改写 User-Agent 的兜底）。
+#
+# 注意：开启后会影响所有客户端的行为（不仅限于 VS Code / Codex CLI），请谨慎开启。
+#
+# 默认：false
+GATEWAY_FORCE_CODEX_CLI=false
+# 上游连接池：每主机最大连接数（默认 1024；流式/HTTP1.1 场景可调大，如 2400/4096）
+GATEWAY_MAX_CONNS_PER_HOST=2048
+# 上游连接池：最大空闲连接总数（默认 2560；账号/代理隔离 + 高并发场景可调大）
+GATEWAY_MAX_IDLE_CONNS=8192
+# 上游连接池：每主机最大空闲连接（默认 120）
+GATEWAY_MAX_IDLE_CONNS_PER_HOST=4096
+# 粘性会话最大排队长度
+GATEWAY_SCHEDULING_STICKY_SESSION_MAX_WAITING=3
+# 粘性会话等待超时（时间段，例如 45s）
+GATEWAY_SCHEDULING_STICKY_SESSION_WAIT_TIMEOUT=120s
+# 兜底排队等待超时（时间段，例如 30s）
+GATEWAY_SCHEDULING_FALLBACK_WAIT_TIMEOUT=30s
+# 兜底最大排队长度
+GATEWAY_SCHEDULING_FALLBACK_MAX_WAITING=100
+# 启用调度批量负载计算
+GATEWAY_SCHEDULING_LOAD_BATCH_ENABLED=true
+# 并发槽位清理周期（时间段，例如 30s）
+GATEWAY_SCHEDULING_SLOT_CLEANUP_INTERVAL=30s
+# 是否允许受控回源到 DB（默认 true，保持现有行为）
+GATEWAY_SCHEDULING_DB_FALLBACK_ENABLED=true
+# 受控回源超时（秒），0 表示不额外收紧超时
+GATEWAY_SCHEDULING_DB_FALLBACK_TIMEOUT_SECONDS=0
+# 受控回源限流（实例级 QPS），0 表示不限制
+GATEWAY_SCHEDULING_DB_FALLBACK_MAX_QPS=0
+# outbox 轮询周期（秒）
+GATEWAY_SCHEDULING_OUTBOX_POLL_INTERVAL_SECONDS=1
+# outbox 滞后告警阈值（秒）
+GATEWAY_SCHEDULING_OUTBOX_LAG_WARN_SECONDS=5
+# outbox 触发强制重建阈值（秒）
+GATEWAY_SCHEDULING_OUTBOX_LAG_REBUILD_SECONDS=10
+# outbox 连续滞后触发次数
+GATEWAY_SCHEDULING_OUTBOX_LAG_REBUILD_FAILURES=3
+# outbox 积压触发重建阈值（行数）
+GATEWAY_SCHEDULING_OUTBOX_BACKLOG_REBUILD_ROWS=10000
+# 全量重建周期（秒）
+GATEWAY_SCHEDULING_FULL_REBUILD_INTERVAL_SECONDS=300
+
+# -----------------------------------------------------------------------------
+# Dashboard Aggregation (Optional)
+# -----------------------------------------------------------------------------
+# Enable aggregation job
+# 启用仪表盘预聚合
+DASHBOARD_AGGREGATION_ENABLED=true
+# Refresh interval (seconds)
+# 刷新间隔（秒）
+DASHBOARD_AGGREGATION_INTERVAL_SECONDS=60
+# Lookback window (seconds)
+# 回看窗口（秒）
+DASHBOARD_AGGREGATION_LOOKBACK_SECONDS=120
+# Allow manual backfill
+# 允许手动回填
+DASHBOARD_AGGREGATION_BACKFILL_ENABLED=false
+# Backfill max range (days)
+# 回填最大跨度（天）
+DASHBOARD_AGGREGATION_BACKFILL_MAX_DAYS=31
+# Recompute recent N days on startup
+# 启动时重算最近 N 天
+DASHBOARD_AGGREGATION_RECOMPUTE_DAYS=2
+# Retention windows (days)
+# 保留窗口（天）
+DASHBOARD_AGGREGATION_RETENTION_USAGE_LOGS_DAYS=90
+DASHBOARD_AGGREGATION_RETENTION_HOURLY_DAYS=180
+DASHBOARD_AGGREGATION_RETENTION_DAILY_DAYS=730
+
+# -----------------------------------------------------------------------------
+# Security Configuration
+# -----------------------------------------------------------------------------
+# URL Allowlist Configuration
+# 启用 URL 白名单验证（false 则跳过白名单检查，仅做基本格式校验）
+SECURITY_URL_ALLOWLIST_ENABLED=false
+
+# 关闭白名单时，是否允许 http:// URL（默认 false，只允许 https://）
+# ⚠️ 警告：允许 HTTP 存在安全风险（明文传输），仅建议在开发/测试环境或可信内网中使用
+# Allow insecure HTTP URLs when allowlist is disabled (default: false, requires https)
+# ⚠️ WARNING: Allowing HTTP has security risks (plaintext transmission)
+#             Only recommended for dev/test environments or trusted networks
+SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=true
+
+# 是否允许本地/私有 IP 地址用于上游/定价/CRS（仅在可信网络中使用）
+# Allow localhost/private IPs for upstream/pricing/CRS (use only in trusted networks)
+SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=true
+
+# -----------------------------------------------------------------------------
+# Gemini OAuth (OPTIONAL, required only for Gemini OAuth accounts)
+# -----------------------------------------------------------------------------
+# Sub2API supports TWO Gemini OAuth modes:
+#
+# 1. Code Assist OAuth (需要 GCP project_id)
+#    - Uses: cloudcode-pa.googleapis.com (Code Assist API)
+#    - Auto scopes: cloud-platform + userinfo.email + userinfo.profile
+#    - OAuth Client: Can use built-in Gemini CLI client (留空即可)
+#    - Requires: Google Cloud Platform project with Code Assist enabled
+#
+# 2. AI Studio OAuth (不需要 project_id)
+#    - Uses: generativelanguage.googleapis.com (AI Studio API)
+#    - Default scopes: generative-language
+#    - OAuth Client: Requires your own OAuth 2.0 Client (内置 Gemini CLI client 不能申请 generative-language scope)
+#    - Requires: Create OAuth 2.0 Client in GCP Console + OAuth consent screen
+#    - Setup Guide: https://ai.google.dev/gemini-api/docs/oauth
+#    - ⚠️ IMPORTANT: OAuth Client 必须发布为正式版本 (Production)
+#      Testing 模式限制: 只能添加 100 个测试用户, refresh token 7 天后过期
+#      发布步骤: GCP Console → OAuth consent screen → PUBLISH APP
+#
+# Configuration:
+# Leave empty to use the built-in Gemini CLI OAuth client (Code Assist OAuth only).
+# To enable AI Studio OAuth, set your own OAuth client ID/secret here.
+GEMINI_OAUTH_CLIENT_ID=
+GEMINI_OAUTH_CLIENT_SECRET=
+# Optional; leave empty to auto-select scopes based on oauth_type
+GEMINI_OAUTH_SCOPES=
+
+# -----------------------------------------------------------------------------
+# Gemini Quota Policy (OPTIONAL, local simulation)
+# -----------------------------------------------------------------------------
+# JSON overrides for local quota simulation (Code Assist only).
+# Example:
+# GEMINI_QUOTA_POLICY={"tiers":{"LEGACY":{"pro_rpd":50,"flash_rpd":1500,"cooldown_minutes":30},"PRO":{"pro_rpd":1500,"flash_rpd":4000,"cooldown_minutes":5},"ULTRA":{"pro_rpd":2000,"flash_rpd":0,"cooldown_minutes":5}}}
+GEMINI_QUOTA_POLICY=
+
+# -----------------------------------------------------------------------------
+# Ops Monitoring Configuration (运维监控配置)
+# -----------------------------------------------------------------------------
+# Enable ops monitoring features (background jobs and APIs)
+# 是否启用运维监控功能（后台任务和接口）
+# Set to false to hide ops menu in sidebar and disable all ops features
+# 设置为 false 可在左侧栏隐藏运维监控菜单并禁用所有运维监控功能
+OPS_ENABLED=true
+
+# -----------------------------------------------------------------------------
+# Update Configuration (在线更新配置)
+# -----------------------------------------------------------------------------
+# Proxy URL for accessing GitHub (used for online updates and pricing data)
+# 用于访问 GitHub 的代理地址（用于在线更新和定价数据获取）
+# Supports: http, https, socks5, socks5h
+# Examples:
+#   HTTP proxy: http://127.0.0.1:7890
+#   SOCKS5 proxy: socks5://127.0.0.1:1080
+#   With authentication: http://user:pass@proxy.example.com:8080
+# Leave empty for direct connection (recommended for overseas servers)
+# 留空表示直连（适用于海外服务器）
+UPDATE_PROXY_URL=
+
+__SETUP_ASSET_sub2api__env_example__
+      ;;
+    "sub2api/Caddyfile")
+      cat >"$output_path" <<'__SETUP_ASSET_sub2api_Caddyfile__'
+# 修改为你的域名
+api.sub2api.com {
+        # =========================================================================
+	# 静态资源长期缓存（高优先级，放在最前面）
+	# 带 hash 的文件可以永久缓存，浏览器和 CDN 都会缓存
+	# =========================================================================
+	@static {
+		path /assets/*
+		path /logo.png
+		path /favicon.ico
+	}
+	header @static {
+		Cache-Control "public, max-age=31536000, immutable"
+		# 移除可能干扰缓存的头
+		-Pragma
+		-Expires
+	}
+
+	# =========================================================================
+	# TLS 安全配置
+	# =========================================================================
+	tls {
+		# 仅使用 TLS 1.2 和 1.3
+		protocols tls1.2 tls1.3
+		
+		# 优先使用的加密套件
+		ciphers TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+	}
+
+	# =========================================================================
+	# 反向代理配置
+	# =========================================================================
+	reverse_proxy localhost:8080 {
+		# 健康检查
+		health_uri /health
+		health_interval 30s
+		health_timeout 10s
+		health_status 200
+		
+		# 负载均衡策略（单节点可忽略，多节点时有用）
+		lb_policy round_robin
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		
+		# 传递真实客户端信息
+		# 兼容 Cloudflare 和直连：后端应优先读取 CF-Connecting-IP，其次 X-Real-IP
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+		# 保留 Cloudflare 原始头（如果存在）
+		# 后端获取 IP 的优先级建议: CF-Connecting-IP → X-Real-IP → X-Forwarded-For
+		header_up CF-Connecting-IP {http.request.header.CF-Connecting-IP}
+		
+		# 连接池优化
+		transport http {
+			keepalive 120s
+			keepalive_idle_conns 256
+			read_buffer 16KB
+			write_buffer 16KB
+			compression off
+		}
+		
+		# 故障转移
+		fail_duration 30s
+		max_fails 3
+		unhealthy_status 500 502 503 504
+	}
+
+	# =========================================================================
+	# 压缩配置
+	# =========================================================================
+	encode {
+		zstd
+		gzip 6
+		minimum_length 256
+		match {
+			header Content-Type text/*
+			header Content-Type application/json*
+			header Content-Type application/javascript*
+			header Content-Type application/xml*
+			header Content-Type application/rss+xml*
+			header Content-Type image/svg+xml*
+		}
+	}
+
+	# =========================================================================
+	# 请求大小限制 (防止大文件攻击)
+	# =========================================================================
+	request_body {
+		max_size 100MB
+	}
+
+	# =========================================================================
+	# 日志配置
+	# =========================================================================
+	log {
+		output file /var/log/caddy/sub2api.log {
+			roll_size 50mb
+			roll_keep 10
+			roll_keep_for 720h
+		}
+		format json
+		level INFO
+	}
+
+	# =========================================================================
+	# 错误处理
+	# =========================================================================
+	handle_errors {
+		respond "{err.status_code} {err.status_text}"
+	}
+}
+
+__SETUP_ASSET_sub2api_Caddyfile__
+      ;;
+    "sub2api/docker-compose.local.yml")
+      cat >"$output_path" <<'__SETUP_ASSET_sub2api_docker_compose_local_yml__'
+# =============================================================================
+# Sub2API Docker Compose - Local Directory Version
+# =============================================================================
+# This configuration uses local directories for data storage instead of named
+# volumes, making it easy to migrate the entire deployment by simply copying
+# the deploy directory.
+#
+# Quick Start:
+#   1. Copy .env.example to .env and configure
+#   2. mkdir -p data postgres_data redis_data
+#   3. docker-compose -f docker-compose.local.yml up -d
+#   4. Check logs: docker-compose -f docker-compose.local.yml logs -f sub2api
+#   5. Access: http://localhost:8080
+#
+# Migration to New Server:
+#   1. docker-compose -f docker-compose.local.yml down
+#   2. tar czf sub2api-deploy.tar.gz deploy/
+#   3. Transfer to new server and extract
+#   4. docker-compose -f docker-compose.local.yml up -d
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Sub2API Application
+  # ===========================================================================
+  sub2api:
+    image: weishaw/sub2api:latest
+    container_name: sub2api
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    ports:
+      - "${BIND_HOST:-0.0.0.0}:${SERVER_PORT:-8080}:8080"
+    volumes:
+      # Local directory mapping for easy migration
+      - ./data:/app/data
+      # Optional: Mount custom config.yaml (uncomment and create the file first)
+      # Copy config.example.yaml to config.yaml, modify it, then uncomment:
+      # - ./config.yaml:/app/data/config.yaml
+    environment:
+      # =======================================================================
+      # Auto Setup (REQUIRED for Docker deployment)
+      # =======================================================================
+      - AUTO_SETUP=true
+
+      # =======================================================================
+      # Server Configuration
+      # =======================================================================
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=${SERVER_MODE:-release}
+      - RUN_MODE=${RUN_MODE:-standard}
+
+      # =======================================================================
+      # Database Configuration (PostgreSQL)
+      # =======================================================================
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${POSTGRES_USER:-sub2api}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - DATABASE_SSLMODE=disable
+      - DATABASE_MAX_OPEN_CONNS=${DATABASE_MAX_OPEN_CONNS:-50}
+      - DATABASE_MAX_IDLE_CONNS=${DATABASE_MAX_IDLE_CONNS:-10}
+      - DATABASE_CONN_MAX_LIFETIME_MINUTES=${DATABASE_CONN_MAX_LIFETIME_MINUTES:-30}
+      - DATABASE_CONN_MAX_IDLE_TIME_MINUTES=${DATABASE_CONN_MAX_IDLE_TIME_MINUTES:-5}
+
+      # =======================================================================
+      # Redis Configuration
+      # =======================================================================
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_POOL_SIZE=${REDIS_POOL_SIZE:-1024}
+      - REDIS_MIN_IDLE_CONNS=${REDIS_MIN_IDLE_CONNS:-10}
+      - REDIS_ENABLE_TLS=${REDIS_ENABLE_TLS:-false}
+
+      # =======================================================================
+      # Admin Account (auto-created on first run)
+      # =======================================================================
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@sub2api.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+
+      # =======================================================================
+      # JWT Configuration
+      # =======================================================================
+      # IMPORTANT: Set a fixed JWT_SECRET to prevent login sessions from being
+      # invalidated after container restarts. If left empty, a random secret
+      # will be generated on each startup.
+      # Generate a secure secret: openssl rand -hex 32
+      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
+
+      # =======================================================================
+      # TOTP (2FA) Configuration
+      # =======================================================================
+      # IMPORTANT: Set a fixed encryption key for TOTP secrets. If left empty,
+      # a random key will be generated on each startup, causing all existing
+      # TOTP configurations to become invalid (users won't be able to login
+      # with 2FA).
+      # Generate a secure key: openssl rand -hex 32
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-}
+
+      # =======================================================================
+      # Timezone Configuration
+      # This affects ALL time operations in the application:
+      # - Database timestamps
+      # - Usage statistics "today" boundary
+      # - Subscription expiry times
+      # - Log timestamps
+      # Common values: Asia/Shanghai, America/New_York, Europe/London, UTC
+      # =======================================================================
+      - TZ=${TZ:-Asia/Shanghai}
+
+      # =======================================================================
+      # Gemini OAuth Configuration (for Gemini accounts)
+      # =======================================================================
+      - GEMINI_OAUTH_CLIENT_ID=${GEMINI_OAUTH_CLIENT_ID:-}
+      - GEMINI_OAUTH_CLIENT_SECRET=${GEMINI_OAUTH_CLIENT_SECRET:-}
+      - GEMINI_OAUTH_SCOPES=${GEMINI_OAUTH_SCOPES:-}
+      - GEMINI_QUOTA_POLICY=${GEMINI_QUOTA_POLICY:-}
+
+      # Built-in OAuth client secrets (optional)
+      # SECURITY: This repo does not embed third-party client_secret.
+      - GEMINI_CLI_OAUTH_CLIENT_SECRET=${GEMINI_CLI_OAUTH_CLIENT_SECRET:-}
+      - ANTIGRAVITY_OAUTH_CLIENT_SECRET=${ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
+
+      # =======================================================================
+      # Security Configuration (URL Allowlist)
+      # =======================================================================
+      # Enable URL allowlist validation (false to skip allowlist checks)
+      - SECURITY_URL_ALLOWLIST_ENABLED=${SECURITY_URL_ALLOWLIST_ENABLED:-false}
+      # Allow insecure HTTP URLs when allowlist is disabled (default: false, requires https)
+      - SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=${SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP:-false}
+      # Allow private IP addresses for upstream/pricing/CRS (for internal deployments)
+      - SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=${SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS:-false}
+      # Upstream hosts whitelist (comma-separated, only used when enabled=true)
+      - SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS=${SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS:-}
+
+      # =======================================================================
+      # Update Configuration (在线更新配置)
+      # =======================================================================
+      # Proxy for accessing GitHub (online updates + pricing data)
+      # Examples: http://host:port, socks5://host:port
+      - UPDATE_PROXY_URL=${UPDATE_PROXY_URL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # PostgreSQL Database
+  # ===========================================================================
+  postgres:
+    image: postgres:18-alpine
+    container_name: sub2api-postgres
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    volumes:
+      # Local directory mapping for easy migration
+      - ./postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-sub2api}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-sub2api}
+      - PGDATA=/var/lib/postgresql/data
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sub2api} -d ${POSTGRES_DB:-sub2api}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # 注意：不暴露端口到宿主机，应用通过内部网络连接
+    # 如需调试，可临时添加：ports: ["127.0.0.1:5433:5432"]
+
+  # ===========================================================================
+  # Redis Cache
+  # ===========================================================================
+  redis:
+    image: redis:8-alpine
+    container_name: sub2api-redis
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    volumes:
+      # Local directory mapping for easy migration
+      - ./redis_data:/data
+    command: >
+        sh -c '
+          redis-server
+          --save 60 1
+          --appendonly yes
+          --appendfsync everysec
+          ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}'
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      # REDISCLI_AUTH is used by redis-cli for authentication (safer than -a flag)
+      - REDISCLI_AUTH=${REDIS_PASSWORD:-}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  sub2api-network:
+    driver: bridge
+
+__SETUP_ASSET_sub2api_docker_compose_local_yml__
+      ;;
+    "sub2api/docker-compose.yml")
+      cat >"$output_path" <<'__SETUP_ASSET_sub2api_docker_compose_yml__'
+# =============================================================================
+# Sub2API Docker Compose Configuration
+# =============================================================================
+# Quick Start:
+#   1. Copy .env.example to .env and configure
+#   2. docker-compose up -d
+#   3. Check logs: docker-compose logs -f sub2api
+#   4. Access: http://localhost:8080
+#
+# All configuration is done via environment variables.
+# No Setup Wizard needed - the system auto-initializes on first run.
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Sub2API Application
+  # ===========================================================================
+  sub2api:
+    image: weishaw/sub2api:latest
+    container_name: sub2api
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    ports:
+      - "${BIND_HOST:-0.0.0.0}:${SERVER_PORT:-8080}:8080"
+    volumes:
+      # Data persistence (config.yaml will be auto-generated here)
+      - sub2api_data:/app/data
+      # Optional: Mount custom config.yaml (uncomment and create the file first)
+      # Copy config.example.yaml to config.yaml, modify it, then uncomment:
+      # - ./config.yaml:/app/data/config.yaml
+      # Optional: Mount a custom Codex instructions template file, then point
+      # gateway.forced_codex_instructions_template_file at /app/data/codex-instructions.md.tmpl
+      # in config.yaml.
+      # - ./codex-instructions.md.tmpl:/app/data/codex-instructions.md.tmpl:ro
+    environment:
+      # =======================================================================
+      # Auto Setup (REQUIRED for Docker deployment)
+      # =======================================================================
+      - AUTO_SETUP=true
+
+      # =======================================================================
+      # Server Configuration
+      # =======================================================================
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=${SERVER_MODE:-release}
+      - RUN_MODE=${RUN_MODE:-standard}
+
+      # =======================================================================
+      # Database Configuration (PostgreSQL)
+      # =======================================================================
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${POSTGRES_USER:-sub2api}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - DATABASE_SSLMODE=disable
+      - DATABASE_MAX_OPEN_CONNS=${DATABASE_MAX_OPEN_CONNS:-50}
+      - DATABASE_MAX_IDLE_CONNS=${DATABASE_MAX_IDLE_CONNS:-10}
+      - DATABASE_CONN_MAX_LIFETIME_MINUTES=${DATABASE_CONN_MAX_LIFETIME_MINUTES:-30}
+      - DATABASE_CONN_MAX_IDLE_TIME_MINUTES=${DATABASE_CONN_MAX_IDLE_TIME_MINUTES:-5}
+
+      # =======================================================================
+      # Redis Configuration
+      # =======================================================================
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - REDIS_POOL_SIZE=${REDIS_POOL_SIZE:-1024}
+      - REDIS_MIN_IDLE_CONNS=${REDIS_MIN_IDLE_CONNS:-10}
+      - REDIS_ENABLE_TLS=${REDIS_ENABLE_TLS:-false}
+
+      # =======================================================================
+      # Admin Account (auto-created on first run)
+      # =======================================================================
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@sub2api.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+
+      # =======================================================================
+      # JWT Configuration
+      # =======================================================================
+      # IMPORTANT: Set a fixed JWT_SECRET to prevent login sessions from being
+      # invalidated after container restarts. If left empty, a random secret
+      # will be generated on each startup.
+      # Generate a secure secret: openssl rand -hex 32
+      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
+
+      # =======================================================================
+      # TOTP (2FA) Configuration
+      # =======================================================================
+      # IMPORTANT: Set a fixed encryption key for TOTP secrets. If left empty,
+      # a random key will be generated on each startup, causing all existing
+      # TOTP configurations to become invalid (users won't be able to login
+      # with 2FA).
+      # Generate a secure key: openssl rand -hex 32
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-}
+
+      # =======================================================================
+      # Timezone Configuration
+      # This affects ALL time operations in the application:
+      # - Database timestamps
+      # - Usage statistics "today" boundary
+      # - Subscription expiry times
+      # - Log timestamps
+      # Common values: Asia/Shanghai, America/New_York, Europe/London, UTC
+      # =======================================================================
+      - TZ=${TZ:-Asia/Shanghai}
+
+      # =======================================================================
+      # Gemini OAuth Configuration (for Gemini accounts)
+      # =======================================================================
+      - GEMINI_OAUTH_CLIENT_ID=${GEMINI_OAUTH_CLIENT_ID:-}
+      - GEMINI_OAUTH_CLIENT_SECRET=${GEMINI_OAUTH_CLIENT_SECRET:-}
+      - GEMINI_OAUTH_SCOPES=${GEMINI_OAUTH_SCOPES:-}
+      - GEMINI_QUOTA_POLICY=${GEMINI_QUOTA_POLICY:-}
+
+      # Built-in OAuth client secrets (optional)
+      # SECURITY: This repo does not embed third-party client_secret.
+      - GEMINI_CLI_OAUTH_CLIENT_SECRET=${GEMINI_CLI_OAUTH_CLIENT_SECRET:-}
+      - ANTIGRAVITY_OAUTH_CLIENT_SECRET=${ANTIGRAVITY_OAUTH_CLIENT_SECRET:-}
+
+      # =======================================================================
+      # Security Configuration (URL Allowlist)
+      # =======================================================================
+      # Enable URL allowlist validation (false to skip allowlist checks)
+      - SECURITY_URL_ALLOWLIST_ENABLED=${SECURITY_URL_ALLOWLIST_ENABLED:-false}
+      # Allow insecure HTTP URLs when allowlist is disabled (default: false, requires https)
+      - SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP=${SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP:-false}
+      # Allow private IP addresses for upstream/pricing/CRS (for internal deployments)
+      - SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS=${SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS:-false}
+      # Upstream hosts whitelist (comma-separated, only used when enabled=true)
+      - SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS=${SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS:-}
+
+      # =======================================================================
+      # Update Configuration (在线更新配置)
+      # =======================================================================
+      # Proxy for accessing GitHub (online updates + pricing data)
+      # Examples: http://host:port, socks5://host:port
+      - UPDATE_PROXY_URL=${UPDATE_PROXY_URL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sub2api-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-T",
+          "5",
+          "-O",
+          "/dev/null",
+          "http://localhost:8080/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ===========================================================================
+  # PostgreSQL Database
+  # ===========================================================================
+  postgres:
+    image: postgres:18-alpine
+    container_name: sub2api-postgres
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      # postgres:18-alpine 默认 PGDATA=/var/lib/postgresql/18/docker（位于镜像声明的匿名卷 /var/lib/postgresql 内）。
+      # 若不显式设置 PGDATA，则即使挂载了 postgres_data 到 /var/lib/postgresql/data，数据也不会落盘到该命名卷，
+      # docker compose down/up 后会触发 initdb 重新初始化，导致用户/密码等数据丢失。
+      - PGDATA=/var/lib/postgresql/data
+      - POSTGRES_USER=${POSTGRES_USER:-sub2api}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-sub2api}
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-sub2api} -d ${POSTGRES_DB:-sub2api}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - 5432:5432
+    # 注意：不暴露端口到宿主机，应用通过内部网络连接
+    # 如需调试，可临时添加：ports: ["127.0.0.1:5433:5432"]
+
+  # ===========================================================================
+  # Redis Cache
+  # ===========================================================================
+  redis:
+    image: redis:8-alpine
+    container_name: sub2api-redis
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 100000
+        hard: 100000
+    volumes:
+      - redis_data:/data
+    command: >
+      sh -c '
+        redis-server
+        --save 60 1
+        --appendonly yes
+        --appendfsync everysec
+        ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}'
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      # REDISCLI_AUTH is used by redis-cli for authentication (safer than -a flag)
+      - REDISCLI_AUTH=${REDIS_PASSWORD:-}
+    networks:
+      - sub2api-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    ports:
+      - 6379:6379
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  sub2api_data:
+    driver: local
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  sub2api-network:
+    driver: bridge
+
+__SETUP_ASSET_sub2api_docker_compose_yml__
       ;;
     "vimrc")
       cat >"$output_path" <<'__SETUP_ASSET_vimrc__'
@@ -3268,8 +4283,71 @@ sub2api_env_example_path() {
   printf '%s/%s\n' "$(sub2api_stack_dir)" ".env.example"
 }
 
+sub2api_caddy_reference_path() {
+  printf '%s/%s\n' "$(sub2api_stack_dir)" "Caddyfile.sub2api.example"
+}
+
 sub2api_install_info_path() {
   printf '%s/%s\n' "$(sub2api_stack_dir)" "INSTALL_INFO.txt"
+}
+
+sub2api_compose_asset_key() {
+  case "$(sub2api_normalize_compose_variant "$1")" in
+    local)
+      printf 'sub2api/docker-compose.local.yml\n'
+      ;;
+    standard)
+      printf 'sub2api/docker-compose.yml\n'
+      ;;
+  esac
+}
+
+sub2api_env_example_asset_key() {
+  printf 'sub2api/.env.example\n'
+}
+
+sub2api_caddy_reference_asset_key() {
+  printf 'sub2api/Caddyfile\n'
+}
+
+sub2api_normalize_compose_variant() {
+  case "$1" in
+    standard|docker-compose.yml|"")
+      printf 'standard\n'
+      ;;
+    local|docker-compose.local.yml)
+      printf 'local\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+sub2api_current_compose_variant() {
+  local env_path="$1"
+  local compose_path="$2"
+  local compose_variant
+
+  compose_variant="$(sub2api_normalize_compose_variant "$(env_get_value "$env_path" "SETUP_SERVER_COMPOSE_VARIANT" 2>/dev/null || true)" 2>/dev/null || true)"
+  if [ -n "$compose_variant" ]; then
+    printf '%s\n' "$compose_variant"
+    return 0
+  fi
+
+  if [ -f "$compose_path" ]; then
+    if grep -Fq './data:/app/data' "$compose_path" \
+      || grep -Fq './postgres_data:/var/lib/postgresql/data' "$compose_path" \
+      || grep -Fq './redis_data:/data' "$compose_path"
+    then
+      printf 'local\n'
+    else
+      printf 'standard\n'
+    fi
+    return 0
+  fi
+
+  printf 'standard\n'
 }
 
 sub2api_stack_exists() {
@@ -3315,43 +4393,53 @@ sub2api_generate_random_email() {
   printf 'admin_%s@sub2api.local\n' "$random_part"
 }
 
-sub2api_sync_remote_files() {
-  local repo_owner="$1"
-  local repo_ref="$2"
+sub2api_sync_embedded_files() {
+  local compose_variant="${1:-standard}"
   local stack_dir
   local compose_path
   local env_path
   local env_example_path
+  local caddy_reference_path
   local temp_compose
   local temp_env
-  local compose_url
-  local env_url
+  local temp_caddy
+  local compose_asset_key
+  local env_asset_key
+  local caddy_asset_key
 
   stack_dir="$(sub2api_stack_dir)"
   compose_path="$(sub2api_compose_path)"
   env_path="$(sub2api_env_path)"
   env_example_path="$(sub2api_env_example_path)"
+  caddy_reference_path="$(sub2api_caddy_reference_path)"
   temp_compose="$(mktemp)"
   temp_env="$(mktemp)"
-  compose_url="https://$github_raw/$repo_owner/sub2api/$repo_ref/deploy/docker-compose.local.yml"
-  env_url="https://$github_raw/$repo_owner/sub2api/$repo_ref/deploy/.env.example"
+  temp_caddy="$(mktemp)"
+  compose_asset_key="$(sub2api_compose_asset_key "$compose_variant")" || return 1
+  env_asset_key="$(sub2api_env_example_asset_key)"
+  caddy_asset_key="$(sub2api_caddy_reference_asset_key)"
 
   ensure_privileged_dir "$(docker_stack_root)" "root"
   ensure_privileged_dir "$stack_dir" "root"
 
-  download_to "$compose_url" "$temp_compose" || {
-    rm -f "$temp_compose" "$temp_env"
+  write_embedded_asset "$compose_asset_key" "$temp_compose" || {
+    rm -f "$temp_compose" "$temp_env" "$temp_caddy"
     return 1
   }
-  download_to "$env_url" "$temp_env" || {
-    rm -f "$temp_compose" "$temp_env"
+  write_embedded_asset "$env_asset_key" "$temp_env" || {
+    rm -f "$temp_compose" "$temp_env" "$temp_caddy"
+    return 1
+  }
+  write_embedded_asset "$caddy_asset_key" "$temp_caddy" || {
+    rm -f "$temp_compose" "$temp_env" "$temp_caddy"
     return 1
   }
 
   run_privileged mv "$temp_compose" "$compose_path"
   run_privileged mv "$temp_env" "$env_example_path"
-  run_privileged chmod 644 "$compose_path" "$env_example_path"
-  run_privileged chown root:root "$compose_path" "$env_example_path"
+  run_privileged mv "$temp_caddy" "$caddy_reference_path"
+  run_privileged chmod 644 "$compose_path" "$env_example_path" "$caddy_reference_path"
+  run_privileged chown root:root "$compose_path" "$env_example_path" "$caddy_reference_path"
 
   if [ ! -f "$env_path" ]; then
     run_privileged cp "$env_example_path" "$env_path"
@@ -3364,20 +4452,9 @@ sub2api_sync_remote_files() {
 }
 
 sub2api_collect_settings() {
-  local env_path="$1"
-  local repo_owner
-  local repo_ref
   local sub2api_port
   local admin_email
   local admin_password
-
-  repo_owner="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_OWNER" "Wei-Shaw")"
-  repo_ref="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_REF" "main")"
-
-  if ! prompt_yes_no_default_yes "使用默认/当前 sub2api 部署参数"; then
-    repo_owner="$(prompt_with_default "设置 sub2api 仓库 owner" "$repo_owner")"
-    repo_ref="$(prompt_with_default "设置 sub2api 仓库分支或 tag" "$repo_ref")"
-  fi
 
   while true; do
     read -r -p "设置 sub2api 访问端口（回车自动分配空闲端口）: " sub2api_port
@@ -3399,23 +4476,22 @@ sub2api_collect_settings() {
   read -r -s -p "设置管理员密码（回车随机生成）: " admin_password
   echo
 
-  printf '%s\n' "$repo_owner|$repo_ref|$sub2api_port|$admin_email|$admin_password"
+  printf '%s\n' "$sub2api_port|$admin_email|$admin_password"
 }
 
 sub2api_configure_env() {
   local env_path="$1"
-  local repo_owner="$2"
-  local repo_ref="$3"
-  local sub2api_port="$4"
-  local admin_email="${5:-}"
-  local admin_password="${6:-}"
-  local fresh_install="${7:-0}"
+  local sub2api_port="$2"
+  local admin_email="${3:-}"
+  local admin_password="${4:-}"
+  local compose_variant="${5:-standard}"
+  local fresh_install="${6:-0}"
   local postgres_password
   local jwt_secret
   local totp_key
 
-  env_upsert_value "$env_path" "SETUP_SERVER_REPO_OWNER" "$repo_owner"
-  env_upsert_value "$env_path" "SETUP_SERVER_REPO_REF" "$repo_ref"
+  compose_variant="$(sub2api_normalize_compose_variant "$compose_variant")" || return 1
+  env_upsert_value "$env_path" "SETUP_SERVER_COMPOSE_VARIANT" "$compose_variant"
   env_upsert_value "$env_path" "SERVER_PORT" "$sub2api_port"
   ensure_env_value "$env_path" "TZ" "Asia/Shanghai"
 
@@ -3454,30 +4530,38 @@ sub2api_configure_env() {
 
 sub2api_prepare_stack_dirs() {
   local stack_dir="$1"
+  local compose_variant="${2:-standard}"
 
-  ensure_privileged_dir "$stack_dir/data" "root"
-  ensure_privileged_dir "$stack_dir/postgres_data" "root"
-  ensure_privileged_dir "$stack_dir/redis_data" "root"
+  compose_variant="$(sub2api_normalize_compose_variant "$compose_variant")" || return 1
+  if [ "$compose_variant" = "local" ]; then
+    ensure_privileged_dir "$stack_dir/data" "root"
+    ensure_privileged_dir "$stack_dir/postgres_data" "root"
+    ensure_privileged_dir "$stack_dir/redis_data" "root"
+  fi
 }
 
 sub2api_write_install_info() {
   local stack_dir="$1"
   local env_path="$2"
   local sub2api_port="$3"
+  local compose_variant="${4:-standard}"
   local info_path
   local admin_email
   local admin_password
   local postgres_password
   local jwt_secret
   local totp_key
+  local caddy_reference_path
   local temp_file
 
+  compose_variant="$(sub2api_normalize_compose_variant "$compose_variant")" || return 1
   info_path="$(sub2api_install_info_path)"
   admin_email="$(env_get_value "$env_path" "ADMIN_EMAIL" 2>/dev/null || true)"
   admin_password="$(env_get_value "$env_path" "ADMIN_PASSWORD" 2>/dev/null || true)"
   postgres_password="$(env_get_value "$env_path" "POSTGRES_PASSWORD" 2>/dev/null || true)"
   jwt_secret="$(env_get_value "$env_path" "JWT_SECRET" 2>/dev/null || true)"
   totp_key="$(env_get_value "$env_path" "TOTP_ENCRYPTION_KEY" 2>/dev/null || true)"
+  caddy_reference_path="$(sub2api_caddy_reference_path)"
   temp_file="$(mktemp)"
 
   cat >"$temp_file" <<EOF
@@ -3485,7 +4569,9 @@ sub2api 部署信息
 
 部署目录: $stack_dir
 访问地址: http://localhost:$sub2api_port
+参考 Caddy 配置: $caddy_reference_path
 
+COMPOSE_VARIANT=$compose_variant
 ADMIN_EMAIL=$admin_email
 ADMIN_PASSWORD=$admin_password
 POSTGRES_PASSWORD=$postgres_password
@@ -3503,11 +4589,10 @@ install_sub2api_stack() {
   local compose_path
   local env_path
   local settings
-  local repo_owner
-  local repo_ref
   local sub2api_port
   local admin_email
   local admin_password
+  local compose_variant
   local conflict_names
   local existing_data_dirs
 
@@ -3516,6 +4601,7 @@ install_sub2api_stack() {
   env_path="$(sub2api_env_path)"
   ensure_privileged_dir "$(docker_stack_root)" "root"
   ensure_privileged_dir "$stack_dir" "root"
+  compose_variant="standard"
 
   if sub2api_stack_exists; then
     warn "sub2api 已存在：$stack_dir"
@@ -3533,21 +4619,21 @@ install_sub2api_stack() {
 
   existing_data_dirs="$(sub2api_existing_data_dirs "$stack_dir" | sort -u)"
   if [ -n "$existing_data_dirs" ]; then
-    warn "检测到已存在的数据目录，可能之前已经部署过 sub2api："
+    warn "检测到已存在的 sub2api 本地目录版数据目录："
     printf '%s\n' "$existing_data_dirs" >&2
-    warn "继续安装可能导致新 .env 与旧数据不一致。"
-    log "如需保留旧数据，请恢复原 .env 后执行“更新 docker 镜像和容器”。"
+    warn "当前默认部署已切换为项目内置 docker-compose.yml（命名卷模式），不会自动复用这些旧目录。"
+    log "如需保留旧数据，请继续使用现有本地目录版部署，或手动迁移后再切换。"
     log "如无需保留旧数据，请先清理上述目录后再重装。"
     return 1
   fi
 
   settings="$(sub2api_collect_settings "$env_path")" || return 1
-  IFS='|' read -r repo_owner repo_ref sub2api_port admin_email admin_password <<<"$settings"
+  IFS='|' read -r sub2api_port admin_email admin_password <<<"$settings"
   if [ -z "$sub2api_port" ]; then
     sub2api_port="$(random_available_port)" || return 1
   fi
 
-  sub2api_sync_remote_files "$repo_owner" "$repo_ref" || return 1
+  sub2api_sync_embedded_files "$compose_variant" || return 1
   conflict_names="$(compose_conflicting_container_names "$compose_path" "sub2api" 2>/dev/null | sort -u)"
   if [ -n "$conflict_names" ]; then
     warn "检测到已存在的同名容器，已停止安装："
@@ -3555,28 +4641,30 @@ install_sub2api_stack() {
     warn "请先清理这些容器后再安装。"
     return 1
   fi
-  sub2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$sub2api_port" "$admin_email" "$admin_password" "1"
-  sub2api_prepare_stack_dirs "$stack_dir"
+  sub2api_configure_env "$env_path" "$sub2api_port" "$admin_email" "$admin_password" "$compose_variant" "1"
+  sub2api_prepare_stack_dirs "$stack_dir" "$compose_variant"
 
   run_service_compose "sub2api" pull || return 1
   run_service_compose "sub2api" up -d || return 1
-  sub2api_write_install_info "$stack_dir" "$env_path" "$sub2api_port"
+  sub2api_write_install_info "$stack_dir" "$env_path" "$sub2api_port" "$compose_variant"
   log "sub2api 已部署，配置目录：$stack_dir"
   log "访问地址：http://localhost:$sub2api_port"
   log "管理员邮箱：$(env_get_value "$env_path" "ADMIN_EMAIL" 2>/dev/null || true)"
   log "管理员密码：$(env_get_value "$env_path" "ADMIN_PASSWORD" 2>/dev/null || true)"
   log "数据库密码、JWT_SECRET、TOTP_ENCRYPTION_KEY 等已写入：$env_path"
+  log "sub2api Caddy 配置参考：$(sub2api_caddy_reference_path)"
   log "安装信息文件：$(sub2api_install_info_path)"
 }
 
 update_sub2api_stack() {
   local stack_dir
   local env_path
-  local repo_owner
-  local repo_ref
   local sub2api_port
+  local compose_path
+  local compose_variant
 
   stack_dir="$(sub2api_stack_dir)"
+  compose_path="$(sub2api_compose_path)"
   env_path="$(sub2api_env_path)"
 
   if [ ! -f "$env_path" ]; then
@@ -3584,23 +4672,27 @@ update_sub2api_stack() {
     return 1
   fi
 
-  repo_owner="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_OWNER" "Wei-Shaw")"
-  repo_ref="$(env_value_or_default "$env_path" "SETUP_SERVER_REPO_REF" "main")"
+  compose_variant="$(sub2api_current_compose_variant "$env_path" "$compose_path")" || return 1
   sub2api_port="$(env_value_or_default "$env_path" "SERVER_PORT" "")"
 
   if [ -z "$sub2api_port" ] || ! [[ "$sub2api_port" =~ ^[0-9]+$ ]] || [ "$sub2api_port" -lt 1 ] || [ "$sub2api_port" -gt 65535 ]; then
     sub2api_port="$(random_available_port)" || return 1
   fi
 
-  sub2api_sync_remote_files "$repo_owner" "$repo_ref" || return 1
-  sub2api_configure_env "$env_path" "$repo_owner" "$repo_ref" "$sub2api_port" "" "" "0"
-  sub2api_prepare_stack_dirs "$stack_dir"
+  if [ "$compose_variant" = "local" ]; then
+    log "检测到现有 sub2api 使用本地目录版 compose；为避免数据迁移风险，本次更新将继续使用 docker-compose.local.yml。"
+  fi
+
+  sub2api_sync_embedded_files "$compose_variant" || return 1
+  sub2api_configure_env "$env_path" "$sub2api_port" "" "" "$compose_variant" "0"
+  sub2api_prepare_stack_dirs "$stack_dir" "$compose_variant"
 
   run_service_compose "sub2api" pull || return 1
   run_service_compose "sub2api" up -d || return 1
-  sub2api_write_install_info "$stack_dir" "$env_path" "$sub2api_port"
+  sub2api_write_install_info "$stack_dir" "$env_path" "$sub2api_port" "$compose_variant"
   log "sub2api 已更新，配置目录：$stack_dir"
   log "访问地址：http://localhost:$sub2api_port"
+  log "sub2api Caddy 配置参考：$(sub2api_caddy_reference_path)"
   log "安装信息文件：$(sub2api_install_info_path)"
 }
 
