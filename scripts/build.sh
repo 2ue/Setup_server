@@ -20,6 +20,10 @@ cleanup() {
 
 trap cleanup EXIT
 
+emit_lf_file() {
+  sed 's/\r$//' "$1"
+}
+
 generate_embedded_assets() {
   local asset_file
   local asset_key
@@ -39,7 +43,7 @@ EOF
 
     printf '    "%s")\n' "$asset_key"
     printf '      cat >"$output_path" <<'\''%s'\''\n' "$delimiter"
-    cat "$asset_file"
+    emit_lf_file "$asset_file"
     printf '\n%s\n' "$delimiter"
     cat <<'EOF'
       ;;
@@ -68,7 +72,7 @@ EOF
   printf 'SETUP_SERVER_BUILD_AT=%q\n\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
   for lib_file in "${LIB_FILES[@]}"; do
-    cat "$lib_file"
+    emit_lf_file "$lib_file"
     printf '\n'
   done
 
@@ -76,11 +80,11 @@ EOF
   printf '\n'
 
   while IFS= read -r module_file; do
-    cat "$module_file"
+    emit_lf_file "$module_file"
     printf '\n'
   done < <(find "$ROOT_DIR/src/modules" -type f -name '*.sh' | sort)
 
-  cat "$ROOT_DIR/src/entry.sh"
+  emit_lf_file "$ROOT_DIR/src/entry.sh"
 } >"$TMP_FILE"
 
 bash -n "$TMP_FILE"
