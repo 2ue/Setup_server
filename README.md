@@ -101,9 +101,9 @@ if ! command -v sudo >/dev/null 2>&1; then
   exit 1
 fi
 if command -v curl >/dev/null 2>&1; then
-  sudo bash -c "$(curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+  curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
 elif command -v wget >/dev/null 2>&1; then
-  sudo bash -c "$(wget -qO- https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+  wget -qO- https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
 else
   echo "请先安装 curl 或 wget" >&2
   exit 1
@@ -118,9 +118,9 @@ if ! command -v sudo >/dev/null 2>&1; then
   exit 1
 fi
 if command -v curl >/dev/null 2>&1; then
-  sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+  curl -fsSL https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
 elif command -v wget >/dev/null 2>&1; then
-  sudo bash -c "$(wget -qO- https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh)"
+  wget -qO- https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
 else
   echo "请先安装 curl 或 wget" >&2
   exit 1
