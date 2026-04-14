@@ -3,7 +3,7 @@
 
 set -o pipefail
 
-SETUP_SERVER_BUILD_AT=2026-04-13T14:57:17Z
+SETUP_SERVER_BUILD_AT=2026-04-13T17:29:39Z
 
 # Core runtime helpers shared by all modules.
 
@@ -174,11 +174,14 @@ setup_preferences_set() {
 
 normalize_github_proxy_value() {
   case "$1" in
+    ask|ASK|prompt|PROMPT)
+      printf 'ask\n'
+      ;;
     1|true|TRUE|yes|YES|y|Y|on|ON)
-      printf '1\n'
+      printf 'on\n'
       ;;
     0|false|FALSE|no|NO|n|N|off|OFF)
-      printf '0\n'
+      printf 'off\n'
       ;;
     *)
       return 1
@@ -201,8 +204,11 @@ apply_github_proxy_preference() {
   local enabled
 
   enabled="$(normalize_github_proxy_value "$1")" || return 1
+  if [ "$enabled" = "ask" ]; then
+    return 0
+  fi
 
-  if [ "$enabled" = "1" ]; then
+  if [ "$enabled" = "on" ]; then
     github_repo="gh-proxy.com/github.com"
     github_release="gh-proxy.com/github.com"
     github_raw="gh-proxy.com/raw.githubusercontent.com"
@@ -215,14 +221,173 @@ apply_github_proxy_preference() {
 
 github_proxy_label() {
   case "$(normalize_github_proxy_value "$1" 2>/dev/null || true)" in
-    1)
+    ask)
+      printf '每次询问\n'
+      ;;
+    on)
       printf '开启\n'
       ;;
-    0)
+    off)
       printf '关闭\n'
       ;;
     *)
       printf '未设置\n'
+      ;;
+  esac
+}
+
+normalize_apt_mirror_mode() {
+  case "$1" in
+    ask|ASK|prompt|PROMPT)
+      printf 'ask\n'
+      ;;
+    cn|CN|china|CHINA|mirror|MIRROR|yes|YES|y|Y|on|ON|1|true|TRUE)
+      printf 'cn\n'
+      ;;
+    skip|SKIP|no|NO|n|N|off|OFF|0|false|FALSE|official|OFFICIAL)
+      printf 'skip\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+apt_mirror_mode_preference() {
+  normalize_apt_mirror_mode "$(setup_preferences_get "SETUP_SERVER_APT_MIRROR" 2>/dev/null || true)"
+}
+
+set_apt_mirror_mode_preference() {
+  local mode
+
+  mode="$(normalize_apt_mirror_mode "$1")" || return 1
+  setup_preferences_set "SETUP_SERVER_APT_MIRROR" "$mode"
+}
+
+apt_mirror_mode_label() {
+  case "$(normalize_apt_mirror_mode "$1" 2>/dev/null || true)" in
+    ask)
+      printf '每次询问\n'
+      ;;
+    cn)
+      printf '使用 LinuxMirrors 国内源\n'
+      ;;
+    skip)
+      printf '不更换系统软件源\n'
+      ;;
+    *)
+      printf '未设置\n'
+      ;;
+  esac
+}
+
+normalize_docker_install_source() {
+  case "$1" in
+    ask|ASK|prompt|PROMPT)
+      printf 'ask\n'
+      ;;
+    cn|CN|china|CHINA|mirror|MIRROR|yes|YES|y|Y|on|ON|1|true|TRUE)
+      printf 'cn\n'
+      ;;
+    official|OFFICIAL|docker|DOCKER|github|GITHUB|no|NO|n|N|off|OFF|0|false|FALSE)
+      printf 'official\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+docker_install_source_preference() {
+  normalize_docker_install_source "$(setup_preferences_get "SETUP_SERVER_DOCKER_INSTALL_SOURCE" 2>/dev/null || true)"
+}
+
+set_docker_install_source_preference() {
+  local source
+
+  source="$(normalize_docker_install_source "$1")" || return 1
+  setup_preferences_set "SETUP_SERVER_DOCKER_INSTALL_SOURCE" "$source"
+}
+
+docker_install_source_label() {
+  case "$(normalize_docker_install_source "$1" 2>/dev/null || true)" in
+    ask)
+      printf '每次询问\n'
+      ;;
+    cn)
+      printf 'LinuxMirrors 国内源\n'
+      ;;
+    official)
+      printf 'Docker 官方安装脚本\n'
+      ;;
+    *)
+      printf '未设置\n'
+      ;;
+  esac
+}
+
+normalize_oh_my_zsh_source() {
+  case "$1" in
+    ask|ASK|prompt|PROMPT)
+      printf 'ask\n'
+      ;;
+    tuna|TUNA|cn|CN|china|CHINA|mirror|MIRROR)
+      printf 'tuna\n'
+      ;;
+    github|GITHUB|official|OFFICIAL)
+      printf 'github\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+oh_my_zsh_source_preference() {
+  normalize_oh_my_zsh_source "$(setup_preferences_get "SETUP_SERVER_OH_MY_ZSH_SOURCE" 2>/dev/null || true)"
+}
+
+set_oh_my_zsh_source_preference() {
+  local source
+
+  source="$(normalize_oh_my_zsh_source "$1")" || return 1
+  setup_preferences_set "SETUP_SERVER_OH_MY_ZSH_SOURCE" "$source"
+}
+
+oh_my_zsh_source_label() {
+  case "$(normalize_oh_my_zsh_source "$1" 2>/dev/null || true)" in
+    ask)
+      printf '每次询问\n'
+      ;;
+    tuna)
+      printf '清华镜像\n'
+      ;;
+    github)
+      printf '官方 GitHub\n'
+      ;;
+    *)
+      printf '未设置\n'
+      ;;
+  esac
+}
+
+resolve_oh_my_zsh_source() {
+  local saved_source
+
+  saved_source="$(oh_my_zsh_source_preference 2>/dev/null || true)"
+  case "$saved_source" in
+    tuna|github)
+      printf '%s\n' "$saved_source"
+      ;;
+    ask)
+      if prompt_yes_no_default_yes "安装 oh-my-zsh 时是否使用清华镜像源？"; then
+        printf 'tuna\n'
+      else
+        printf 'github\n'
+      fi
+      ;;
+    *)
+      printf 'tuna\n'
       ;;
   esac
 }
@@ -410,24 +575,34 @@ install_asset_file_privileged() {
 
 github_proxy_set() {
   local saved_value
+  local persist_choice
 
   saved_value="$(github_proxy_preference 2>/dev/null || true)"
-  if [ -n "$saved_value" ]; then
+  if [ "$saved_value" = "on" ] || [ "$saved_value" = "off" ]; then
     apply_github_proxy_preference "$saved_value"
     return 0
+  fi
+
+  persist_choice="1"
+  if [ "$saved_value" = "ask" ]; then
+    persist_choice="0"
   fi
 
   while true; do
     read -r -p "是否启用 Github 国内加速? [Y/n] " input
     case "$input" in
       ""|[yY])
-        set_github_proxy_preference "1"
-        apply_github_proxy_preference "1"
+        if [ "$persist_choice" = "1" ]; then
+          set_github_proxy_preference "on"
+        fi
+        apply_github_proxy_preference "on"
         break
         ;;
       [nN])
-        set_github_proxy_preference "0"
-        apply_github_proxy_preference "0"
+        if [ "$persist_choice" = "1" ]; then
+          set_github_proxy_preference "off"
+        fi
+        apply_github_proxy_preference "off"
         break
         ;;
       *)
@@ -473,45 +648,6 @@ prompt_yes_no_default_no() {
       [yY]) return 0 ;;
       ""|[nN]) return 1 ;;
       *) log "错误选项：$input" ;;
-    esac
-  done
-}
-
-prompt_yes_no_with_default() {
-  local prompt_text="$1"
-  local default_value="$2"
-  local prompt_suffix
-
-  case "$default_value" in
-    1|true|TRUE|yes|YES|y|Y|on|ON)
-      prompt_suffix="[Y/n]"
-      default_value="1"
-      ;;
-    0|false|FALSE|no|NO|n|N|off|OFF)
-      prompt_suffix="[y/N]"
-      default_value="0"
-      ;;
-    *)
-      warn "无效的默认值：$default_value"
-      return 1
-      ;;
-  esac
-
-  while true; do
-    read -r -p "$prompt_text $prompt_suffix " input
-    case "$input" in
-      "")
-        [ "$default_value" = "1" ] && return 0 || return 1
-        ;;
-      [yY])
-        return 0
-        ;;
-      [nN])
-        return 1
-        ;;
-      *)
-        log "错误选项：$input"
-        ;;
     esac
   done
 }
@@ -828,33 +964,83 @@ __SETUP_ASSET_vimrc__
   esac
 }
 
-configure_github_settings() {
-  local current_value
-  local new_value
+source_settings_read_value() {
+  local prompt_text="$1"
+  local default_value="$2"
+  local normalizer="$3"
+  local options_text="$4"
+  local raw_input
+  local normalized_value
 
-  print_section "Github 下载设置"
+  while true; do
+    read -r -p "$prompt_text（可选：$options_text；默认：$default_value）: " raw_input
+    if [ -z "$raw_input" ]; then
+      printf '%s\n' "$default_value"
+      return 0
+    fi
 
-  current_value="$(github_proxy_preference 2>/dev/null || true)"
-  if [ -z "$current_value" ]; then
-    current_value="1"
-  fi
+    normalized_value="$("$normalizer" "$raw_input" 2>/dev/null || true)"
+    if [ -n "$normalized_value" ]; then
+      printf '%s\n' "$normalized_value"
+      return 0
+    fi
 
-  log "当前 Github 国内加速：$(github_proxy_label "$current_value")"
-
-  if prompt_yes_no_with_default "后续运行脚本时，是否启用 Github 国内加速？" "$current_value"; then
-    new_value="1"
-  else
-    new_value="0"
-  fi
-
-  set_github_proxy_preference "$new_value" || return 1
-  apply_github_proxy_preference "$new_value" || return 1
-
-  log "已保存 Github 下载设置：$(github_proxy_label "$new_value")"
-  log "配置文件：$(setup_preferences_path)"
+    log "错误选项：$raw_input"
+  done
 }
 
-register_module "github_settings" "github_settings" "修改并记住 Github 国内加速开关" "configure_github_settings"
+configure_source_settings() {
+  local config_path
+  local github_value
+  local apt_value
+  local docker_value
+  local oh_my_zsh_value
+
+  print_section "下载源与镜像源设置"
+
+  config_path="$(setup_preferences_path)"
+  github_value="$(github_proxy_preference 2>/dev/null || true)"
+  apt_value="$(apt_mirror_mode_preference 2>/dev/null || true)"
+  docker_value="$(docker_install_source_preference 2>/dev/null || true)"
+  oh_my_zsh_value="$(oh_my_zsh_source_preference 2>/dev/null || true)"
+
+  log "配置文件：$config_path"
+  log "当前 Github 国内加速：$(github_proxy_label "$github_value")"
+  log "当前 APT 国内源策略：$(apt_mirror_mode_label "$apt_value")"
+  log "当前 Docker 安装源策略：$(docker_install_source_label "$docker_value")"
+  log "当前 oh-my-zsh 仓库源：$(oh_my_zsh_source_label "$oh_my_zsh_value")"
+
+  github_value="$(source_settings_read_value "设置 SETUP_SERVER_GITHUB_PROXY" "${github_value:-ask}" "normalize_github_proxy_value" "ask/on/off")" || return 1
+  apt_value="$(source_settings_read_value "设置 SETUP_SERVER_APT_MIRROR" "${apt_value:-ask}" "normalize_apt_mirror_mode" "ask/cn/skip")" || return 1
+  docker_value="$(source_settings_read_value "设置 SETUP_SERVER_DOCKER_INSTALL_SOURCE" "${docker_value:-ask}" "normalize_docker_install_source" "ask/cn/official")" || return 1
+  oh_my_zsh_value="$(source_settings_read_value "设置 SETUP_SERVER_OH_MY_ZSH_SOURCE" "${oh_my_zsh_value:-tuna}" "normalize_oh_my_zsh_source" "ask/tuna/github")" || return 1
+
+  set_github_proxy_preference "$github_value" || return 1
+  set_apt_mirror_mode_preference "$apt_value" || return 1
+  set_docker_install_source_preference "$docker_value" || return 1
+  set_oh_my_zsh_source_preference "$oh_my_zsh_value" || return 1
+
+  case "$github_value" in
+    on|off)
+      apply_github_proxy_preference "$github_value" || return 1
+      ;;
+    ask)
+      if prompt_yes_no_default_yes "当前这次运行，是否启用 Github 国内加速？"; then
+        apply_github_proxy_preference "on" || return 1
+      else
+        apply_github_proxy_preference "off" || return 1
+      fi
+      ;;
+  esac
+
+  log "已保存下载源相关配置。"
+  log "Github 国内加速：$(github_proxy_label "$github_value")"
+  log "APT 国内源策略：$(apt_mirror_mode_label "$apt_value")"
+  log "Docker 安装源策略：$(docker_install_source_label "$docker_value")"
+  log "oh-my-zsh 仓库源：$(oh_my_zsh_source_label "$oh_my_zsh_value")"
+}
+
+register_module "source_settings" "source_settings" "配置下载源与镜像源偏好" "configure_source_settings"
 
 install_bottom_if_needed() {
   local package_path="$DOWNLOAD_DIR/bottom_0.10.2-1_amd64.deb"
@@ -918,11 +1104,23 @@ install_target_vimrc_if_needed() {
 }
 
 app_update_init() {
+  local apt_mirror_mode
+
   print_section "APT 软件更新、默认软件安装"
 
-  if prompt_yes_no_default_yes "是否使用 LinuxMirrors 脚本，更换国内软件源?（需使用 ROOT 用户执行此脚本）"; then
-    run_remote_script "https://linuxmirrors.cn/main.sh" || return 1
-  fi
+  apt_mirror_mode="$(apt_mirror_mode_preference 2>/dev/null || true)"
+  case "$apt_mirror_mode" in
+    cn)
+      run_remote_script "https://linuxmirrors.cn/main.sh" || return 1
+      ;;
+    skip)
+      ;;
+    *)
+      if prompt_yes_no_default_yes "是否使用 LinuxMirrors 脚本，更换国内软件源?（需使用 ROOT 用户执行此脚本）"; then
+        run_remote_script "https://linuxmirrors.cn/main.sh" || return 1
+      fi
+      ;;
+  esac
 
   run_privileged apt -y update || return 1
   run_privileged apt -y upgrade || return 1
@@ -1096,6 +1294,8 @@ install_oh_my_posh_for_target() {
 
 term_config() {
   local oh_my_zsh_dir="$TARGET_HOME/.oh-my-zsh"
+  local oh_my_zsh_source
+  local oh_my_zsh_repo
   local zsh_path
 
   print_section "配置终端"
@@ -1107,7 +1307,17 @@ term_config() {
     run_privileged apt-get update -y || return 1
     run_privileged apt-get install -y zsh || return 1
 
-    run_as_target_user "rm -rf ~/ohmyzsh && git clone https://mirrors.tuna.tsinghua.edu.cn/git/ohmyzsh.git ~/ohmyzsh && cd ~/ohmyzsh/tools && RUNZSH=no REMOTE=https://mirrors.tuna.tsinghua.edu.cn/git/ohmyzsh.git sh install.sh" || return 1
+    oh_my_zsh_source="$(resolve_oh_my_zsh_source)" || return 1
+    case "$oh_my_zsh_source" in
+      github)
+        oh_my_zsh_repo="https://github.com/ohmyzsh/ohmyzsh.git"
+        ;;
+      *)
+        oh_my_zsh_repo="https://mirrors.tuna.tsinghua.edu.cn/git/ohmyzsh.git"
+        ;;
+    esac
+
+    run_as_target_user "rm -rf ~/ohmyzsh && git clone $(shell_quote "$oh_my_zsh_repo") ~/ohmyzsh && cd ~/ohmyzsh/tools && RUNZSH=no REMOTE=$(shell_quote "$oh_my_zsh_repo") sh install.sh" || return 1
     run_as_target_user "git clone https://$github_repo/zsh-users/zsh-autosuggestions ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions" || true
     run_as_target_user "git clone https://$github_repo/zsh-users/zsh-syntax-highlighting.git ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" || true
 
@@ -1894,25 +2104,39 @@ write_env_kv() {
 }
 
 docker_init() {
+  local docker_install_source
+
   print_section "安装/更新 Docker"
 
-  while true; do
-    read -r -p "是否配置国内源安装 docker? [Y/n] " input
-    case "$input" in
-      ""|[yY])
-        run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
-        break
-        ;;
-      [nN])
-        run_privileged mkdir -p /etc/apt/sources.list.d
-        run_remote_script "https://get.docker.com" || return 1
-        break
-        ;;
-      *)
-        log "错误选项：$input"
-        ;;
-    esac
-  done
+  docker_install_source="$(docker_install_source_preference 2>/dev/null || true)"
+  case "$docker_install_source" in
+    cn)
+      run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
+      ;;
+    official)
+      run_privileged mkdir -p /etc/apt/sources.list.d
+      run_remote_script "https://get.docker.com" || return 1
+      ;;
+    *)
+      while true; do
+        read -r -p "是否配置国内源安装 docker? [Y/n] " input
+        case "$input" in
+          ""|[yY])
+            run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
+            break
+            ;;
+          [nN])
+            run_privileged mkdir -p /etc/apt/sources.list.d
+            run_remote_script "https://get.docker.com" || return 1
+            break
+            ;;
+          *)
+            log "错误选项：$input"
+            ;;
+        esac
+      done
+      ;;
+  esac
 
   log "安装/更新 docker 环境完成!"
 }

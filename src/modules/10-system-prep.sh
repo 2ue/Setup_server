@@ -60,11 +60,23 @@ install_target_vimrc_if_needed() {
 }
 
 app_update_init() {
+  local apt_mirror_mode
+
   print_section "APT 软件更新、默认软件安装"
 
-  if prompt_yes_no_default_yes "是否使用 LinuxMirrors 脚本，更换国内软件源?（需使用 ROOT 用户执行此脚本）"; then
-    run_remote_script "https://linuxmirrors.cn/main.sh" || return 1
-  fi
+  apt_mirror_mode="$(apt_mirror_mode_preference 2>/dev/null || true)"
+  case "$apt_mirror_mode" in
+    cn)
+      run_remote_script "https://linuxmirrors.cn/main.sh" || return 1
+      ;;
+    skip)
+      ;;
+    *)
+      if prompt_yes_no_default_yes "是否使用 LinuxMirrors 脚本，更换国内软件源?（需使用 ROOT 用户执行此脚本）"; then
+        run_remote_script "https://linuxmirrors.cn/main.sh" || return 1
+      fi
+      ;;
+  esac
 
   run_privileged apt -y update || return 1
   run_privileged apt -y upgrade || return 1

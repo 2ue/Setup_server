@@ -430,25 +430,39 @@ write_env_kv() {
 }
 
 docker_init() {
+  local docker_install_source
+
   print_section "安装/更新 Docker"
 
-  while true; do
-    read -r -p "是否配置国内源安装 docker? [Y/n] " input
-    case "$input" in
-      ""|[yY])
-        run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
-        break
-        ;;
-      [nN])
-        run_privileged mkdir -p /etc/apt/sources.list.d
-        run_remote_script "https://get.docker.com" || return 1
-        break
-        ;;
-      *)
-        log "错误选项：$input"
-        ;;
-    esac
-  done
+  docker_install_source="$(docker_install_source_preference 2>/dev/null || true)"
+  case "$docker_install_source" in
+    cn)
+      run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
+      ;;
+    official)
+      run_privileged mkdir -p /etc/apt/sources.list.d
+      run_remote_script "https://get.docker.com" || return 1
+      ;;
+    *)
+      while true; do
+        read -r -p "是否配置国内源安装 docker? [Y/n] " input
+        case "$input" in
+          ""|[yY])
+            run_remote_script "https://linuxmirrors.cn/docker.sh" || return 1
+            break
+            ;;
+          [nN])
+            run_privileged mkdir -p /etc/apt/sources.list.d
+            run_remote_script "https://get.docker.com" || return 1
+            break
+            ;;
+          *)
+            log "错误选项：$input"
+            ;;
+        esac
+      done
+      ;;
+  esac
 
   log "安装/更新 docker 环境完成!"
 }

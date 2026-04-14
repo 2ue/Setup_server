@@ -80,6 +80,8 @@ install_oh_my_posh_for_target() {
 
 term_config() {
   local oh_my_zsh_dir="$TARGET_HOME/.oh-my-zsh"
+  local oh_my_zsh_source
+  local oh_my_zsh_repo
   local zsh_path
 
   print_section "配置终端"
@@ -91,7 +93,17 @@ term_config() {
     run_privileged apt-get update -y || return 1
     run_privileged apt-get install -y zsh || return 1
 
-    run_as_target_user "rm -rf ~/ohmyzsh && git clone https://mirrors.tuna.tsinghua.edu.cn/git/ohmyzsh.git ~/ohmyzsh && cd ~/ohmyzsh/tools && RUNZSH=no REMOTE=https://mirrors.tuna.tsinghua.edu.cn/git/ohmyzsh.git sh install.sh" || return 1
+    oh_my_zsh_source="$(resolve_oh_my_zsh_source)" || return 1
+    case "$oh_my_zsh_source" in
+      github)
+        oh_my_zsh_repo="https://github.com/ohmyzsh/ohmyzsh.git"
+        ;;
+      *)
+        oh_my_zsh_repo="https://mirrors.tuna.tsinghua.edu.cn/git/ohmyzsh.git"
+        ;;
+    esac
+
+    run_as_target_user "rm -rf ~/ohmyzsh && git clone $(shell_quote "$oh_my_zsh_repo") ~/ohmyzsh && cd ~/ohmyzsh/tools && RUNZSH=no REMOTE=$(shell_quote "$oh_my_zsh_repo") sh install.sh" || return 1
     run_as_target_user "git clone https://$github_repo/zsh-users/zsh-autosuggestions ~/.oh-my-zsh/custom/plugins/zsh-autosuggestions" || true
     run_as_target_user "git clone https://$github_repo/zsh-users/zsh-syntax-highlighting.git ~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting" || true
 

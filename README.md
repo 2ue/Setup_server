@@ -114,6 +114,17 @@
 )
 ```
 
+## 下载源偏好配置
+
+脚本运行时会将下载源相关偏好写入 `~/.setup_server/preferences.conf`，也可以通过主菜单里的 `source_settings` 修改。
+
+可用配置项：
+
+- `SETUP_SERVER_GITHUB_PROXY=ask|on|off`
+- `SETUP_SERVER_APT_MIRROR=ask|cn|skip`
+- `SETUP_SERVER_DOCKER_INSTALL_SOURCE=ask|cn|official`
+- `SETUP_SERVER_OH_MY_ZSH_SOURCE=ask|tuna|github`
+
 ## 源码结构
 
 项目现在分成两层：
