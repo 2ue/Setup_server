@@ -32,6 +32,7 @@ main() {
   ensure_supported_os || return 1
   init_runtime
   github_proxy_set
+  log "当前 Github 国内加速：$(github_proxy_label "$(current_github_proxy_mode)")"
 
   while true; do
     show_main_menu

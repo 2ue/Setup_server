@@ -229,6 +229,14 @@ github_proxy_label() {
   esac
 }
 
+current_github_proxy_mode() {
+  if [ "$github_raw" = "raw.githubusercontent.com" ]; then
+    printf 'off\n'
+  else
+    printf 'on\n'
+  fi
+}
+
 normalize_apt_mirror_mode() {
   case "$1" in
     ask|ASK|prompt|PROMPT)
@@ -430,28 +438,50 @@ download_to() {
   local output_path="$2"
   local fallback_url
   local exit_code
+  local err_file
+  local fallback_err_file
 
   fallback_url="$(github_proxy_fallback_url "$url" 2>/dev/null || true)"
 
   if command_exists curl; then
+    if [ -n "$fallback_url" ] && [ "$fallback_url" != "$url" ]; then
+      err_file="$(mktemp)"
+      fallback_err_file="$(mktemp)"
+
+      curl -fsSL "$url" -o "$output_path" 2>"$err_file" && {
+        rm -f "$err_file" "$fallback_err_file"
+        return 0
+      }
+      exit_code=$?
+
+      warn "加速地址下载失败，尝试回退到官方地址：$fallback_url"
+      curl -fsSL "$fallback_url" -o "$output_path" 2>"$fallback_err_file" && {
+        rm -f "$err_file" "$fallback_err_file"
+        return 0
+      }
+
+      cat "$err_file" >&2
+      cat "$fallback_err_file" >&2
+      rm -f "$err_file" "$fallback_err_file"
+      return "$exit_code"
+    fi
+
     curl -fsSL "$url" -o "$output_path" && return 0
     exit_code=$?
-    if [ -n "$fallback_url" ] && [ "$fallback_url" != "$url" ]; then
-      warn "下载失败，尝试回退到官方地址：$fallback_url"
-      curl -fsSL "$fallback_url" -o "$output_path"
-      return $?
-    fi
     return "$exit_code"
   fi
 
   if command_exists wget; then
-    wget -q "$url" -O "$output_path" && return 0
-    exit_code=$?
     if [ -n "$fallback_url" ] && [ "$fallback_url" != "$url" ]; then
-      warn "下载失败，尝试回退到官方地址：$fallback_url"
+      wget -q "$url" -O "$output_path" && return 0
+      exit_code=$?
+      warn "加速地址下载失败，尝试回退到官方地址：$fallback_url"
       wget -q "$fallback_url" -O "$output_path"
       return $?
     fi
+
+    wget -q "$url" -O "$output_path" && return 0
+    exit_code=$?
     return "$exit_code"
   fi
 
@@ -463,28 +493,50 @@ download_to_stdout() {
   local url="$1"
   local fallback_url
   local exit_code
+  local err_file
+  local fallback_err_file
 
   fallback_url="$(github_proxy_fallback_url "$url" 2>/dev/null || true)"
 
   if command_exists curl; then
+    if [ -n "$fallback_url" ] && [ "$fallback_url" != "$url" ]; then
+      err_file="$(mktemp)"
+      fallback_err_file="$(mktemp)"
+
+      curl -fsSL "$url" 2>"$err_file" && {
+        rm -f "$err_file" "$fallback_err_file"
+        return 0
+      }
+      exit_code=$?
+
+      warn "加速地址下载失败，尝试回退到官方地址：$fallback_url"
+      curl -fsSL "$fallback_url" 2>"$fallback_err_file" && {
+        rm -f "$err_file" "$fallback_err_file"
+        return 0
+      }
+
+      cat "$err_file" >&2
+      cat "$fallback_err_file" >&2
+      rm -f "$err_file" "$fallback_err_file"
+      return "$exit_code"
+    fi
+
     curl -fsSL "$url" && return 0
     exit_code=$?
-    if [ -n "$fallback_url" ] && [ "$fallback_url" != "$url" ]; then
-      warn "下载失败，尝试回退到官方地址：$fallback_url"
-      curl -fsSL "$fallback_url"
-      return $?
-    fi
     return "$exit_code"
   fi
 
   if command_exists wget; then
-    wget -qO- "$url" && return 0
-    exit_code=$?
     if [ -n "$fallback_url" ] && [ "$fallback_url" != "$url" ]; then
-      warn "下载失败，尝试回退到官方地址：$fallback_url"
+      wget -qO- "$url" && return 0
+      exit_code=$?
+      warn "加速地址下载失败，尝试回退到官方地址：$fallback_url"
       wget -qO- "$fallback_url"
       return $?
     fi
+
+    wget -qO- "$url" && return 0
+    exit_code=$?
     return "$exit_code"
   fi
 
