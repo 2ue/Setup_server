@@ -96,35 +96,41 @@
 国内加速：
 
 ```sh
+tmp="/tmp/Setup_server.$$"
+trap 'rm -f "$tmp"' EXIT
 if ! command -v sudo >/dev/null 2>&1; then
   echo "请先安装 sudo" >&2
   exit 1
 fi
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
+  curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh -o "$tmp"
 elif command -v wget >/dev/null 2>&1; then
-  wget -qO- https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
+  wget -qO "$tmp" https://ghfast.top/https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh
 else
   echo "请先安装 curl 或 wget" >&2
   exit 1
 fi
+sudo bash "$tmp"
 ```
 
 国外直连：
 
 ```sh
+tmp="/tmp/Setup_server.$$"
+trap 'rm -f "$tmp"' EXIT
 if ! command -v sudo >/dev/null 2>&1; then
   echo "请先安装 sudo" >&2
   exit 1
 fi
 if command -v curl >/dev/null 2>&1; then
-  curl -fsSL https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
+  curl -fsSL https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh -o "$tmp"
 elif command -v wget >/dev/null 2>&1; then
-  wget -qO- https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh | sudo bash
+  wget -qO "$tmp" https://raw.githubusercontent.com/2ue/Setup_server/main/Setup.sh
 else
   echo "请先安装 curl 或 wget" >&2
   exit 1
 fi
+sudo bash "$tmp"
 ```
 
 ## 下载源偏好配置
